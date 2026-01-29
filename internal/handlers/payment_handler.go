@@ -1,0 +1,361 @@
+package handlers
+
+import (
+	"net/http"
+	"strconv"
+
+	"github.com/gin-gonic/gin"
+	"github.com/sjperalta/fintera-api/internal/repository"
+	"github.com/sjperalta/fintera-api/internal/services"
+	"github.com/sjperalta/fintera-api/internal/storage"
+)
+
+type PaymentHandler struct {
+	paymentService *services.PaymentService
+	storage        *storage.LocalStorage
+}
+
+func NewPaymentHandler(paymentService *services.PaymentService, storage *storage.LocalStorage) *PaymentHandler {
+	return &PaymentHandler{paymentService: paymentService, storage: storage}
+}
+
+// @Summary List Payments
+// @Description Get a paginated list of payments
+// @Tags Payments
+// @Accept json
+// @Produce json
+// @Param page query int false "Page number" default(1)
+// @Param per_page query int false "Items per page" default(20)
+// @Param status query string false "Filter by status"
+// @Success 200 {object} map[string]interface{}
+// @Security BearerAuth
+// @Router /payments [get]
+func (h *PaymentHandler) Index(c *gin.Context) {
+	query := repository.NewListQuery()
+	query.Page, _ = strconv.Atoi(c.DefaultQuery("page", "1"))
+	query.PerPage, _ = strconv.Atoi(c.DefaultQuery("per_page", "20"))
+	query.Filters["status"] = c.Query("status")
+
+	payments, total, err := h.paymentService.List(c.Request.Context(), query)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	var responses []interface{}
+	for _, p := range payments {
+		responses = append(responses, p.ToResponse())
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"payments": responses,
+		"pagination": gin.H{
+			"page":        query.Page,
+			"per_page":    query.PerPage,
+			"total":       total,
+			"total_pages": (total + int64(query.PerPage) - 1) / int64(query.PerPage),
+		},
+	})
+}
+
+// @Summary Payment Statistics
+// @Description Get payment statistics for revenue flow
+// @Tags Payments
+// @Accept json
+// @Produce json
+// @Param month query int true "Month (1-12)"
+// @Param year query int true "Year (YYYY)"
+// @Success 200 {object} []services.RevenuePoint
+// @Security BearerAuth
+// @Router /payments/statistics [get]
+func (h *PaymentHandler) Statistics(c *gin.Context) {
+	month, _ := strconv.Atoi(c.Query("month"))
+	year, _ := strconv.Atoi(c.Query("year"))
+
+	if month < 1 || month > 12 || year < 2000 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid month or year"})
+		return
+	}
+
+	stats, err := h.paymentService.GetMonthlyStatistics(c.Request.Context(), month, year)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, stats)
+}
+
+// @Summary Payment Stats
+// @Description Get monthly payment statistics (pending, collected, overdue)
+// @Tags Payments
+// @Accept json
+// @Produce json
+// @Success 200 {object} repository.PaymentStats
+// @Security BearerAuth
+// @Router /payments/stats [get]
+func (h *PaymentHandler) Stats(c *gin.Context) {
+	stats, err := h.paymentService.GetStats(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, stats)
+}
+
+// @Summary Get Payment
+// @Description Get a payment by ID
+// @Tags Payments
+// @Accept json
+// @Produce json
+// @Param payment_id path int true "Payment ID"
+// @Success 200 {object} models.PaymentResponse
+// @Failure 404 {object} map[string]string
+// @Security BearerAuth
+// @Router /payments/{payment_id} [get]
+func (h *PaymentHandler) Show(c *gin.Context) {
+	id, _ := strconv.ParseUint(c.Param("payment_id"), 10, 32)
+	payment, err := h.paymentService.FindByID(c.Request.Context(), uint(id))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Pago no encontrado"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"payment": payment.ToResponse()})
+}
+
+type ApprovePaymentRequest struct {
+	PaidAmount float64 `json:"paid_amount"`
+}
+
+// @Summary Approve Payment
+// @Description Approve a payment (Admin)
+// @Tags Payments
+// @Accept json
+// @Produce json
+// @Param payment_id path int true "Payment ID"
+// @Param request body ApprovePaymentRequest true "Amount"
+// @Success 200 {object} models.PaymentResponse
+// @Security BearerAuth
+// @Router /payments/{payment_id}/approve [post]
+func (h *PaymentHandler) Approve(c *gin.Context) {
+	id, _ := strconv.ParseUint(c.Param("payment_id"), 10, 32)
+	var req ApprovePaymentRequest
+	c.ShouldBindJSON(&req)
+
+	payment, err := h.paymentService.Approve(c.Request.Context(), uint(id), req.PaidAmount,
+		h.getUserID(c),
+		c.ClientIP(),
+		c.Request.UserAgent(),
+	)
+	if err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"payment": payment.ToResponse(), "message": "Pago aprobado"})
+}
+
+// @Summary Reject Payment
+// @Description Reject a payment (Admin)
+// @Tags Payments
+// @Accept json
+// @Produce json
+// @Param payment_id path int true "Payment ID"
+// @Success 200 {object} models.PaymentResponse
+// @Security BearerAuth
+// @Router /payments/{payment_id}/reject [post]
+func (h *PaymentHandler) Reject(c *gin.Context) {
+	id, _ := strconv.ParseUint(c.Param("payment_id"), 10, 32)
+	payment, err := h.paymentService.Reject(c.Request.Context(), uint(id),
+		h.getUserID(c),
+		c.ClientIP(),
+		c.Request.UserAgent(),
+	)
+	if err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"payment": payment.ToResponse(), "message": "Pago rechazado"})
+}
+
+// @Summary Upload Receipt
+// @Description Upload payment receipt image/pdf
+// @Tags Payments
+// @Accept multipart/form-data
+// @Produce json
+// @Param payment_id path int true "Payment ID"
+// @Param receipt formData file true "Receipt File"
+// @Success 200 {object} map[string]string
+// @Security BearerAuth
+// @Router /payments/{payment_id}/receipt [post]
+func (h *PaymentHandler) UploadReceipt(c *gin.Context) {
+	id, _ := strconv.ParseUint(c.Param("payment_id"), 10, 32)
+
+	file, header, err := c.Request.FormFile("receipt")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Archivo requerido"})
+		return
+	}
+	defer file.Close()
+
+	if !storage.IsValidContentType(header.Header.Get("Content-Type")) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Tipo de archivo inválido"})
+		return
+	}
+
+	path, err := h.storage.Upload(file, header, "receipts")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al guardar archivo"})
+		return
+	}
+
+	if err := h.paymentService.UpdateReceiptPath(c.Request.Context(), uint(id), path); err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Comprobante subido exitosamente"})
+}
+
+// @Summary Download Receipt
+// @Description Download payment receipt
+// @Tags Payments
+// @Produce application/octet-stream
+// @Param payment_id path int true "Payment ID"
+// @Success 200 {file} file "receipt"
+// @Security BearerAuth
+// @Router /payments/{payment_id}/receipt [get]
+func (h *PaymentHandler) DownloadReceipt(c *gin.Context) {
+	id, _ := strconv.ParseUint(c.Param("payment_id"), 10, 32)
+	payment, err := h.paymentService.FindByID(c.Request.Context(), uint(id))
+	if err != nil || payment.DocumentPath == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Comprobante no encontrado"})
+		return
+	}
+	c.File(h.storage.GetFullPath(*payment.DocumentPath))
+}
+
+// @Summary Undo Payment
+// @Description Revert payment state (Admin)
+// @Tags Payments
+// @Accept json
+// @Produce json
+// @Param payment_id path int true "Payment ID"
+// @Success 200 {object} map[string]string
+// @Security BearerAuth
+// @Router /payments/{payment_id}/undo [post]
+func (h *PaymentHandler) Undo(c *gin.Context) {
+	// TODO: Implement
+	c.JSON(http.StatusOK, gin.H{"message": "Pago deshecho"})
+}
+
+// Nested routes handlers
+
+// @Summary List Contract Payments
+// @Description Get payments for a contract
+// @Tags Payments
+// @Accept json
+// @Produce json
+// @Param contract_id path int true "Contract ID"
+// @Param project_id path int true "Project ID"
+// @Param lot_id path int true "Lot ID"
+// @Success 200 {object} map[string]interface{}
+// @Security BearerAuth
+// @Router /projects/{project_id}/lots/{lot_id}/contracts/{contract_id}/payments [get]
+func (h *PaymentHandler) IndexByContract(c *gin.Context) {
+	contractID, _ := strconv.ParseUint(c.Param("contract_id"), 10, 32)
+	payments, err := h.paymentService.FindByContract(c.Request.Context(), uint(contractID))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	var responses []interface{}
+	for _, p := range payments {
+		responses = append(responses, p.ToResponse())
+	}
+	c.JSON(http.StatusOK, gin.H{"payments": responses})
+}
+
+// @Summary Get Contract Payment
+// @Description Get a payment for a specific contract
+// @Tags Payments
+// @Accept json
+// @Produce json
+// @Param contract_id path int true "Contract ID"
+// @Param project_id path int true "Project ID"
+// @Param lot_id path int true "Lot ID"
+// @Param payment_id path int true "Payment ID"
+// @Success 200 {object} models.PaymentResponse
+// @Failure 404 {object} map[string]string
+// @Security BearerAuth
+// @Router /projects/{project_id}/lots/{lot_id}/contracts/{contract_id}/payments/{payment_id} [get]
+func (h *PaymentHandler) ShowByContract(c *gin.Context) {
+	h.Show(c)
+}
+
+// @Summary Approve Contract Payment
+// @Description Approve a payment for a specific contract
+// @Tags Payments
+// @Accept json
+// @Produce json
+// @Param contract_id path int true "Contract ID"
+// @Param project_id path int true "Project ID"
+// @Param lot_id path int true "Lot ID"
+// @Param payment_id path int true "Payment ID"
+// @Param request body ApprovePaymentRequest true "Amount"
+// @Success 200 {object} models.PaymentResponse
+// @Security BearerAuth
+// @Router /projects/{project_id}/lots/{lot_id}/contracts/{contract_id}/payments/{payment_id}/approve [post]
+func (h *PaymentHandler) ApproveByContract(c *gin.Context) {
+	h.Approve(c)
+}
+
+// @Summary Reject Contract Payment
+// @Description Reject a payment for a specific contract
+// @Tags Payments
+// @Accept json
+// @Produce json
+// @Param contract_id path int true "Contract ID"
+// @Param project_id path int true "Project ID"
+// @Param lot_id path int true "Lot ID"
+// @Param payment_id path int true "Payment ID"
+// @Success 200 {object} models.PaymentResponse
+// @Security BearerAuth
+// @Router /projects/{project_id}/lots/{lot_id}/contracts/{contract_id}/payments/{payment_id}/reject [post]
+func (h *PaymentHandler) RejectByContract(c *gin.Context) {
+	h.Reject(c)
+}
+
+// @Summary Upload Contract Payment Receipt
+// @Description Upload receipt for a contract payment
+// @Tags Payments
+// @Accept multipart/form-data
+// @Produce json
+// @Param contract_id path int true "Contract ID"
+// @Param project_id path int true "Project ID"
+// @Param lot_id path int true "Lot ID"
+// @Param payment_id path int true "Payment ID"
+// @Param receipt formData file true "Receipt File"
+// @Success 200 {object} map[string]string
+// @Security BearerAuth
+// @Router /projects/{project_id}/lots/{lot_id}/contracts/{contract_id}/payments/{payment_id}/receipt [post]
+func (h *PaymentHandler) UploadReceiptByContract(c *gin.Context) {
+	h.UploadReceipt(c)
+}
+
+// Helper to get user ID from context
+func (h *PaymentHandler) getUserID(c *gin.Context) uint {
+	id, exists := c.Get("userID")
+	if !exists {
+		return 0
+	}
+	switch v := id.(type) {
+	case uint:
+		return v
+	case float64:
+		return uint(v)
+	default:
+		return 0
+	}
+}

@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Rescisión de Contrato</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 12pt;
+            line-height: 1.5;
+            margin: 40px;
+        }
+
+        .container {
+            border: 1px solid #000;
+            padding: 20px;
+            border-radius: 5px;
+        }
+
+        h1 {
+            text-align: center;
+            font-weight: bold;
+            font-size: 16pt;
+            margin-bottom: 30px;
+        }
+
+        .text-center {
+            text-align: center;
+        }
+
+        .bold {
+            font-weight: bold;
+        }
+
+        ul {
+            list-style-type: none;
+            padding-left: 20px;
+        }
+
+        .signature-section {
+            margin-top: 60px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .signature-block {
+            width: 45%;
+            text-align: center;
+        }
+
+        hr.signature-line {
+            border: 0;
+            border-top: 1px solid #000;
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>RESCISIÓN DE DOCUMENTO PRIVADO DE PROMESA DE COMPRA-VENTA DE UN BIEN INMUEBLE</h1>
+
+        <p>Comparecen personalmente los señores:</p>
+
+        <p>
+            <strong>RUBÉN DE JESÚS MENJIVAR AYALA</strong>, mayor de edad, soltero, Ingeniero en Producción Industrial,
+            con número de Documento Nacional de Identificación: 0506-1990-01420, domiciliado en Cienaguita,
+            Municipio de Puerto Cortés, Departamento de Cortés.
+        </p>
+
+        <p>
+            <strong>{{.ApplicantName}}</strong>, mayor de edad, hondureño(a), con DNI
+            <strong>{{.ApplicantIdentity}}</strong>,
+            domiciliado(a) en {{if
+            .ApplicantAddress}}{{.ApplicantAddress}}{{else}}_______________________________________{{end}}.
+        </p>
+
+        <p>
+            Manifiestan que en fecha <strong>{{.ContractDate}}</strong>, convinieron suscribir un CONTRATO PRIVADO DE
+            PROMESA DE VENTA DE UN BIEN INMUEBLE,
+            consistente en el lote <strong>{{.LotName}}</strong> del proyecto denominado
+            <strong>{{.ProjectName}}</strong>,
+            ubicado en {{.ProjectAddress}}.
+        </p>
+
+        <p>El lote se describe así:</p>
+        <ul>
+            <li>AL NORTE: {{.North}}</li>
+            <li>AL SUR: {{.South}}</li>
+            <li>AL ESTE: {{.East}}</li>
+            <li>AL OESTE: {{.West}}</li>
+        </ul>
+
+        <p>
+            Se acuerda la devolución de <strong>L. {{.RefundAmount}}</strong>, sancionando <strong>L.
+                {{.PenaltyAmount}}</strong> por incumplimiento,
+            con depósito en la cuenta <strong> _______________________________ </strong> de
+            _______________________________ a nombre de {{.ApplicantName}}.
+        </p>
+
+        <p>
+            En Puerto Cortés, a los {{.Day}} días del mes de {{.Month}} del año {{.Year}}.
+        </p>
+
+        <div style="margin-top: 50px; border-top: 1px solid #000;"></div>
+
+        <div style="margin-top: 30px;">
+            <p><strong>RUBÉN DE JESÚS MENJIVAR AYALA</strong><br>ID: 0506-1990-01420 - HUELLA</p>
+            <br><br>
+            <p><strong>{{.ApplicantNameUpper}}</strong><br>ID: {{.ApplicantIdentity}} - HUELLA</p>
+        </div>
+    </div>
+</body>
+
+</html>

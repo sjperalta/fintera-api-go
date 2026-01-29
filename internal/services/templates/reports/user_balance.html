@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Estado de Cuenta</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+
+        h1 {
+            font-size: 16pt;
+            font-weight: bold;
+        }
+
+        p {
+            font-size: 12pt;
+            margin: 4px 0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        th {
+            background-color: #f0f0f0;
+            border-bottom: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+            font-size: 10pt;
+            font-weight: bold;
+        }
+
+        td {
+            border-bottom: 1px solid #ddd;
+            padding: 8px;
+            font-size: 10pt;
+        }
+
+        .header {
+            margin-bottom: 20px;
+        }
+
+        .contract-header {
+            margin-top: 20px;
+            font-size: 14pt;
+            font-weight: bold;
+            border-bottom: 2px solid #333;
+            padding-bottom: 4px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <h1>Estado de Cuenta</h1>
+        <p><strong>Cliente:</strong> {{.User.FullName}}</p>
+        <p><strong>Identidad:</strong> {{.User.Identity}}</p>
+        <p><strong>Fecha de Emisión:</strong> {{.Date}}</p>
+    </div>
+
+    {{range .Contracts}}
+    <div class="contract-section">
+        <div class="contract-header">Contrato #{{.ID}}</div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Tipo de Pago</th>
+                    <th>Vencimiento</th>
+                    <th>Monto</th>
+                    <th>Pagado</th>
+                    <th>Estado</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{range .Payments}}
+                <tr>
+                    <td>{{.PaymentType}}</td>
+                    <td>{{.DueDate}}</td>
+                    <td>{{.Amount}}</td>
+                    <td>{{.PaidAmount}}</td>
+                    <td>{{.Status}}</td>
+                </tr>
+                {{end}}
+            </tbody>
+        </table>
+    </div>
+    {{end}}
+</body>
+
+</html>

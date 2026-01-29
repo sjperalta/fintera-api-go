@@ -1,0 +1,2763 @@
+basePath: /api/v1
+definitions:
+  handlers.ApprovePaymentRequest:
+    properties:
+      paid_amount:
+        type: number
+    type: object
+  handlers.CancelContractRequest:
+    properties:
+      note:
+        type: string
+    type: object
+  handlers.ChangePasswordRequest:
+    properties:
+      current_password:
+        type: string
+      new_password:
+        minLength: 6
+        type: string
+    required:
+    - current_password
+    - new_password
+    type: object
+  handlers.CreateUserRequest:
+    properties:
+      address:
+        type: string
+      email:
+        type: string
+      full_name:
+        type: string
+      identity:
+        type: string
+      password:
+        minLength: 6
+        type: string
+      phone:
+        type: string
+      role:
+        type: string
+      rtn:
+        type: string
+    required:
+    - email
+    - full_name
+    - password
+    type: object
+  handlers.ImportProjectRequest:
+    properties:
+      projects:
+        items:
+          $ref: '#/definitions/models.Project'
+        type: array
+    type: object
+  handlers.LoginRequest:
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  handlers.RefreshRequest:
+    properties:
+      refresh_token:
+        type: string
+    required:
+    - refresh_token
+    type: object
+  handlers.RejectContractRequest:
+    properties:
+      reason:
+        type: string
+    type: object
+  handlers.SendRecoveryCodeRequest:
+    properties:
+      email:
+        type: string
+    required:
+    - email
+    type: object
+  handlers.UpdateLocaleRequest:
+    properties:
+      locale:
+        type: string
+    required:
+    - locale
+    type: object
+  handlers.UpdatePasswordWithCodeRequest:
+    properties:
+      code:
+        type: string
+      email:
+        type: string
+      new_password:
+        minLength: 6
+        type: string
+    required:
+    - code
+    - email
+    - new_password
+    type: object
+  handlers.VerifyRecoveryCodeRequest:
+    properties:
+      code:
+        type: string
+      email:
+        type: string
+    required:
+    - code
+    - email
+    type: object
+  models.Contract:
+    properties:
+      active:
+        type: boolean
+      amount:
+        type: number
+      applicant_user:
+        $ref: '#/definitions/models.User'
+      applicant_user_id:
+        type: integer
+      approved_at:
+        type: string
+      balance:
+        type: number
+      closed_at:
+        type: string
+      created_at:
+        type: string
+      creator:
+        $ref: '#/definitions/models.User'
+      creator_id:
+        type: integer
+      currency:
+        type: string
+      document_paths:
+        description: JSON string of document paths
+        type: string
+      down_payment:
+        type: number
+      financing_type:
+        type: string
+      id:
+        type: integer
+      ledger_entries:
+        items:
+          $ref: '#/definitions/models.ContractLedgerEntry'
+        type: array
+      lot:
+        allOf:
+        - $ref: '#/definitions/models.Lot'
+        description: Associations
+      lot_id:
+        type: integer
+      note:
+        type: string
+      payment_term:
+        type: integer
+      payments:
+        items:
+          $ref: '#/definitions/models.Payment'
+        type: array
+      rejection_reason:
+        type: string
+      reserve_amount:
+        type: number
+      status:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  models.ContractLedgerEntry:
+    properties:
+      amount:
+        description: Negative for credits (payments), positive for debits (charges)
+        type: number
+      contract:
+        allOf:
+        - $ref: '#/definitions/models.Contract'
+        description: Relationships
+      contract_id:
+        type: integer
+      created_at:
+        type: string
+      description:
+        type: string
+      entry_date:
+        type: string
+      entry_type:
+        description: initial, payment, interest, prepayment, adjustment
+        type: string
+      id:
+        type: integer
+      payment:
+        $ref: '#/definitions/models.Payment'
+      payment_id:
+        type: integer
+      updated_at:
+        type: string
+    type: object
+  models.ContractLedgerEntryResponse:
+    properties:
+      amount:
+        type: number
+      contract_id:
+        type: integer
+      created_at:
+        type: string
+      description:
+        type: string
+      entry_date:
+        type: string
+      entry_type:
+        type: string
+      id:
+        type: integer
+      payment_id:
+        type: integer
+      updated_at:
+        type: string
+    type: object
+  models.ContractResponse:
+    properties:
+      amount:
+        type: number
+      applicant_credit_score:
+        type: integer
+      applicant_identity:
+        type: string
+      applicant_name:
+        type: string
+      applicant_phone:
+        type: string
+      applicant_user_id:
+        type: integer
+      approved_at:
+        type: string
+      balance:
+        type: number
+      cancellation_notes:
+        type: string
+      contract_id:
+        type: integer
+      created_at:
+        type: string
+      created_by:
+        type: string
+      down_payment:
+        type: number
+      financing_type:
+        type: string
+      id:
+        type: integer
+      ledger_entries:
+        items:
+          $ref: '#/definitions/models.ContractLedgerEntryResponse'
+        type: array
+      lot_address:
+        type: string
+      lot_area:
+        type: number
+      lot_id:
+        type: integer
+      lot_length:
+        type: number
+      lot_name:
+        type: string
+      lot_override_price:
+        type: number
+      lot_price:
+        type: number
+      lot_width:
+        type: number
+      note:
+        type: string
+      payment_schedule:
+        items:
+          $ref: '#/definitions/models.PaymentResponse'
+        type: array
+      payment_term:
+        type: integer
+      project_address:
+        type: string
+      project_id:
+        type: integer
+      project_name:
+        type: string
+      rejection_reason:
+        type: string
+      reserve_amount:
+        type: number
+      status:
+        type: string
+      total_interest_collected:
+        type: number
+      total_paid:
+        type: number
+      updated_at:
+        type: string
+    type: object
+  models.Lot:
+    properties:
+      address:
+        type: string
+      contracts:
+        items:
+          $ref: '#/definitions/models.Contract'
+        type: array
+      created_at:
+        type: string
+      east:
+        type: string
+      id:
+        type: integer
+      length:
+        type: number
+      measurement_unit:
+        type: string
+      name:
+        type: string
+      north:
+        type: string
+      note:
+        type: string
+      override_area:
+        type: number
+      override_price:
+        type: number
+      price:
+        type: number
+      project:
+        allOf:
+        - $ref: '#/definitions/models.Project'
+        description: Associations
+      project_id:
+        type: integer
+      registration_number:
+        type: string
+      south:
+        type: string
+      status:
+        type: string
+      updated_at:
+        type: string
+      west:
+        type: string
+      width:
+        type: number
+    type: object
+  models.LotResponse:
+    properties:
+      address:
+        type: string
+      area:
+        type: number
+      east:
+        type: string
+      effective_price:
+        type: number
+      id:
+        type: integer
+      length:
+        type: number
+      measurement_unit:
+        type: string
+      name:
+        type: string
+      north:
+        type: string
+      note:
+        type: string
+      price:
+        type: number
+      project_id:
+        type: integer
+      project_name:
+        type: string
+      registration_number:
+        type: string
+      south:
+        type: string
+      status:
+        type: string
+      west:
+        type: string
+      width:
+        type: number
+    type: object
+  models.Notification:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: integer
+      message:
+        type: string
+      notification_type:
+        type: string
+      read_at:
+        type: string
+      title:
+        type: string
+      updated_at:
+        type: string
+      user_id:
+        type: integer
+    type: object
+  models.NotificationResponse:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: integer
+      message:
+        type: string
+      notification_type:
+        type: string
+      read:
+        type: boolean
+      read_at:
+        type: string
+      title:
+        type: string
+    type: object
+  models.Payment:
+    properties:
+      amount:
+        type: number
+      approved_at:
+        type: string
+      contract:
+        allOf:
+        - $ref: '#/definitions/models.Contract'
+        description: Associations
+      contract_id:
+        type: integer
+      created_at:
+        type: string
+      description:
+        type: string
+      due_date:
+        type: string
+      id:
+        type: integer
+      interest_amount:
+        type: number
+      paid_amount:
+        type: number
+      payment_date:
+        type: string
+      payment_type:
+        type: string
+      status:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  models.PaymentResponse:
+    properties:
+      amount:
+        type: number
+      applicant_identity:
+        type: string
+      applicant_name:
+        type: string
+      applicant_phone:
+        type: string
+      approved_at:
+        type: string
+      contract_id:
+        type: integer
+      contract_status:
+        description: Contract details
+        type: string
+      description:
+        type: string
+      due_date:
+        type: string
+      has_receipt:
+        type: boolean
+      id:
+        type: integer
+      interest_amount:
+        type: number
+      lot_address:
+        type: string
+      lot_dimensions:
+        type: string
+      lot_name:
+        type: string
+      overdue_days:
+        type: integer
+      paid_amount:
+        type: number
+      payment_date:
+        type: string
+      payment_type:
+        type: string
+      project_address:
+        type: string
+      project_name:
+        type: string
+      status:
+        type: string
+    type: object
+  models.Project:
+    properties:
+      address:
+        type: string
+      commission_rate:
+        type: number
+      created_at:
+        type: string
+      delivery_date:
+        type: string
+      description:
+        type: string
+      guid:
+        type: string
+      id:
+        type: integer
+      interest_rate:
+        type: number
+      lot_count:
+        type: integer
+      lots:
+        description: Associations
+        items:
+          $ref: '#/definitions/models.Lot'
+        type: array
+      measurement_unit:
+        type: string
+      name:
+        type: string
+      price_per_square_unit:
+        type: number
+      project_type:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  models.ProjectResponse:
+    properties:
+      address:
+        type: string
+      available_lots:
+        type: integer
+      commission_rate:
+        type: number
+      delivery_date:
+        type: string
+      description:
+        type: string
+      id:
+        type: integer
+      interest_rate:
+        type: number
+      lot_count:
+        type: integer
+      measurement_unit:
+        type: string
+      name:
+        type: string
+      price_per_square_unit:
+        type: number
+      project_type:
+        type: string
+      reserved_lots:
+        type: integer
+      sold_lots:
+        type: integer
+    type: object
+  models.User:
+    properties:
+      address:
+        type: string
+      confirmed_at:
+        type: string
+      contracts:
+        items:
+          $ref: '#/definitions/models.Contract'
+        type: array
+      created_at:
+        type: string
+      created_by:
+        type: integer
+      creator:
+        allOf:
+        - $ref: '#/definitions/models.User'
+        description: Associations
+      credit_score:
+        type: integer
+      email:
+        type: string
+      full_name:
+        type: string
+      id:
+        type: integer
+      identity:
+        type: string
+      locale:
+        type: string
+      note:
+        type: string
+      notifications:
+        items:
+          $ref: '#/definitions/models.Notification'
+        type: array
+      phone:
+        type: string
+      role:
+        type: string
+      rtn:
+        type: string
+      status:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  models.UserResponse:
+    properties:
+      address:
+        type: string
+      confirmed_at:
+        type: string
+      created_at:
+        type: string
+      credit_score:
+        type: integer
+      email:
+        type: string
+      full_name:
+        type: string
+      id:
+        type: integer
+      identity:
+        type: string
+      locale:
+        type: string
+      phone:
+        type: string
+      role:
+        type: string
+      rtn:
+        type: string
+      status:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  repository.PaymentStats:
+    properties:
+      collected_this_month:
+        type: number
+      pending_this_month:
+        type: number
+      total_overdue:
+        type: number
+    type: object
+  services.LoginResult:
+    properties:
+      refresh_token:
+        type: string
+      token:
+        type: string
+      user:
+        $ref: '#/definitions/models.UserResponse'
+    type: object
+  services.RevenuePoint:
+    properties:
+      amount:
+        type: number
+      date:
+        type: string
+    type: object
+host: localhost:8081
+info:
+  contact:
+    email: support@swagger.io
+    name: API Support
+    url: http://www.swagger.io/support
+  description: REST API for Fintera Real Estate Management System
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  termsOfService: http://swagger.io/terms/
+  title: Fintera API
+  version: "1.0"
+paths:
+  /analytics/distribution:
+    get:
+      description: Returns availability statistics for lots
+      parameters:
+      - description: Project ID
+        in: query
+        name: project_id
+        type: integer
+      produces:
+      - application/json
+      responses: {}
+      security:
+      - BearerAuth: []
+      summary: Get Lot Distribution
+      tags:
+      - Analytics
+  /analytics/export:
+    get:
+      description: Generates and downloads analytics reports in various formats
+      parameters:
+      - description: Report format (csv, xlsx, pdf)
+        in: query
+        name: format
+        required: true
+        type: string
+      - description: Project ID
+        in: query
+        name: project_id
+        type: integer
+      - description: Start Date (ISO 8601)
+        in: query
+        name: start_date
+        type: string
+      - description: End Date (ISO 8601)
+        in: query
+        name: end_date
+        type: string
+      produces:
+      - application/octet-stream
+      responses: {}
+      security:
+      - BearerAuth: []
+      summary: Export Analytics Data
+      tags:
+      - Analytics
+  /analytics/overview:
+    get:
+      description: Returns high-level statistics and trend data
+      parameters:
+      - description: Project ID
+        in: query
+        name: project_id
+        type: integer
+      - description: Start Date (ISO 8601)
+        in: query
+        name: start_date
+        type: string
+      - description: End Date (ISO 8601)
+        in: query
+        name: end_date
+        type: string
+      - description: Revenue timeframe (6M or 12M)
+        in: query
+        name: revenue_timeframe
+        type: string
+      produces:
+      - application/json
+      responses: {}
+      security:
+      - BearerAuth: []
+      summary: Get Analytics Overview
+      tags:
+      - Analytics
+  /analytics/performance:
+    get:
+      description: Returns performance metrics for multiple projects
+      produces:
+      - application/json
+      responses: {}
+      security:
+      - BearerAuth: []
+      summary: Get Project Performance
+      tags:
+      - Analytics
+  /audits:
+    get:
+      consumes:
+      - application/json
+      description: Get a paginated list of system audit logs
+      parameters:
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 50
+        description: Items per page
+        in: query
+        name: per_page
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List Audit Logs
+      tags:
+      - Audit
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Authenticates a user
+      parameters:
+      - description: Login Credentials
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.LoginResult'
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Login
+      tags:
+      - Auth
+  /auth/logout:
+    post:
+      consumes:
+      - application/json
+      description: Logs out a user (invalidates refresh token)
+      parameters:
+      - description: Refresh Token
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.RefreshRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Logout
+      tags:
+      - Auth
+  /auth/refresh:
+    post:
+      consumes:
+      - application/json
+      description: Refreshes the access token
+      parameters:
+      - description: Refresh Token
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.RefreshRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.LoginResult'
+      summary: Refresh Token
+      tags:
+      - Auth
+  /contracts:
+    get:
+      consumes:
+      - application/json
+      description: Get a paginated list of contracts for the current user (or all
+        for admin)
+      parameters:
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Items per page
+        in: query
+        name: per_page
+        type: integer
+      - description: Search term
+        in: query
+        name: search_term
+        type: string
+      - description: Filter by status
+        in: query
+        name: status
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List Contracts
+      tags:
+      - Contracts
+  /health:
+    get:
+      description: Checks if the API is running
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Health Check
+      tags:
+      - Health
+  /notifications:
+    get:
+      consumes:
+      - application/json
+      description: Get a paginated list of notifications for the current user
+      parameters:
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Items per page
+        in: query
+        name: per_page
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List Notifications
+      tags:
+      - Notifications
+  /notifications/{notification_id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete a notification
+      parameters:
+      - description: Notification ID
+        in: path
+        name: notification_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Delete Notification
+      tags:
+      - Notifications
+    get:
+      consumes:
+      - application/json
+      description: Get a notification by ID
+      parameters:
+      - description: Notification ID
+        in: path
+        name: notification_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.NotificationResponse'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get Notification
+      tags:
+      - Notifications
+    put:
+      consumes:
+      - application/json
+      description: Mark a notification as read
+      parameters:
+      - description: Notification ID
+        in: path
+        name: notification_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Mark Notification Read
+      tags:
+      - Notifications
+  /notifications/mark_all_as_read:
+    post:
+      consumes:
+      - application/json
+      description: Mark all notifications as read for current user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Mark All Notifications Read
+      tags:
+      - Notifications
+  /payments:
+    get:
+      consumes:
+      - application/json
+      description: Get a paginated list of payments
+      parameters:
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Items per page
+        in: query
+        name: per_page
+        type: integer
+      - description: Filter by status
+        in: query
+        name: status
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List Payments
+      tags:
+      - Payments
+  /payments/{payment_id}:
+    get:
+      consumes:
+      - application/json
+      description: Get a payment by ID
+      parameters:
+      - description: Payment ID
+        in: path
+        name: payment_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.PaymentResponse'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get Payment
+      tags:
+      - Payments
+  /payments/{payment_id}/approve:
+    post:
+      consumes:
+      - application/json
+      description: Approve a payment (Admin)
+      parameters:
+      - description: Payment ID
+        in: path
+        name: payment_id
+        required: true
+        type: integer
+      - description: Amount
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.ApprovePaymentRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.PaymentResponse'
+      security:
+      - BearerAuth: []
+      summary: Approve Payment
+      tags:
+      - Payments
+  /payments/{payment_id}/receipt:
+    get:
+      description: Download payment receipt
+      parameters:
+      - description: Payment ID
+        in: path
+        name: payment_id
+        required: true
+        type: integer
+      produces:
+      - application/octet-stream
+      responses:
+        "200":
+          description: receipt
+          schema:
+            type: file
+      security:
+      - BearerAuth: []
+      summary: Download Receipt
+      tags:
+      - Payments
+    post:
+      consumes:
+      - multipart/form-data
+      description: Upload payment receipt image/pdf
+      parameters:
+      - description: Payment ID
+        in: path
+        name: payment_id
+        required: true
+        type: integer
+      - description: Receipt File
+        in: formData
+        name: receipt
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Upload Receipt
+      tags:
+      - Payments
+  /payments/{payment_id}/reject:
+    post:
+      consumes:
+      - application/json
+      description: Reject a payment (Admin)
+      parameters:
+      - description: Payment ID
+        in: path
+        name: payment_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.PaymentResponse'
+      security:
+      - BearerAuth: []
+      summary: Reject Payment
+      tags:
+      - Payments
+  /payments/{payment_id}/undo:
+    post:
+      consumes:
+      - application/json
+      description: Revert payment state (Admin)
+      parameters:
+      - description: Payment ID
+        in: path
+        name: payment_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Undo Payment
+      tags:
+      - Payments
+  /payments/statistics:
+    get:
+      consumes:
+      - application/json
+      description: Get payment statistics for revenue flow
+      parameters:
+      - description: Month (1-12)
+        in: query
+        name: month
+        required: true
+        type: integer
+      - description: Year (YYYY)
+        in: query
+        name: year
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/services.RevenuePoint'
+            type: array
+      security:
+      - BearerAuth: []
+      summary: Payment Statistics
+      tags:
+      - Payments
+  /payments/stats:
+    get:
+      consumes:
+      - application/json
+      description: Get monthly payment statistics (pending, collected, overdue)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/repository.PaymentStats'
+      security:
+      - BearerAuth: []
+      summary: Payment Stats
+      tags:
+      - Payments
+  /projects:
+    post:
+      consumes:
+      - application/json
+      description: Create a new project
+      parameters:
+      - description: Project Data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.Project'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.ProjectResponse'
+      security:
+      - BearerAuth: []
+      summary: Create Project
+      tags:
+      - Projects
+  /projects/{project_id}:
+    delete:
+      consumes:
+      - application/json
+      description: Soft delete a project
+      parameters:
+      - description: Project ID
+        in: path
+        name: project_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Delete Project
+      tags:
+      - Projects
+    get:
+      consumes:
+      - application/json
+      description: Get a project by ID
+      parameters:
+      - description: Project ID
+        in: path
+        name: project_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.ProjectResponse'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get Project
+      tags:
+      - Projects
+    put:
+      consumes:
+      - application/json
+      description: Update an existing project
+      parameters:
+      - description: Project ID
+        in: path
+        name: project_id
+        required: true
+        type: integer
+      - description: Project Data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.Project'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.ProjectResponse'
+      security:
+      - BearerAuth: []
+      summary: Update Project
+      tags:
+      - Projects
+  /projects/{project_id}/approve:
+    post:
+      consumes:
+      - application/json
+      description: Approve a project (Admin)
+      parameters:
+      - description: Project ID
+        in: path
+        name: project_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Approve Project
+      tags:
+      - Projects
+  /projects/{project_id}/lots:
+    get:
+      consumes:
+      - application/json
+      description: Get a paginated list of lots for a project
+      parameters:
+      - description: Project ID
+        in: path
+        name: project_id
+        required: true
+        type: integer
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Items per page
+        in: query
+        name: per_page
+        type: integer
+      - description: Search term
+        in: query
+        name: search_term
+        type: string
+      - description: Filter by status
+        in: query
+        name: status
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List Lots
+      tags:
+      - Lots
+    post:
+      consumes:
+      - application/json
+      description: Create a new lot in a project
+      parameters:
+      - description: Project ID
+        in: path
+        name: project_id
+        required: true
+        type: integer
+      - description: Lot Data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.Lot'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.LotResponse'
+      security:
+      - BearerAuth: []
+      summary: Create Lot
+      tags:
+      - Lots
+  /projects/{project_id}/lots/{lot_id}:
+    delete:
+      consumes:
+      - application/json
+      description: Soft delete a lot
+      parameters:
+      - description: Lot ID
+        in: path
+        name: lot_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Delete Lot
+      tags:
+      - Lots
+    get:
+      consumes:
+      - application/json
+      description: Get a lot by ID
+      parameters:
+      - description: Lot ID
+        in: path
+        name: lot_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.LotResponse'
+      security:
+      - BearerAuth: []
+      summary: Get Lot
+      tags:
+      - Lots
+    put:
+      consumes:
+      - application/json
+      description: Update an existing lot
+      parameters:
+      - description: Lot ID
+        in: path
+        name: lot_id
+        required: true
+        type: integer
+      - description: Lot Data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.Lot'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.LotResponse'
+      security:
+      - BearerAuth: []
+      summary: Update Lot
+      tags:
+      - Lots
+  /projects/{project_id}/lots/{lot_id}/contracts:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Create a new contract with optional new user and documents
+      parameters:
+      - description: Project ID
+        in: path
+        name: project_id
+        required: true
+        type: integer
+      - description: Lot ID
+        in: path
+        name: lot_id
+        required: true
+        type: integer
+      - description: Contract Data (JSON)
+        in: formData
+        name: contract
+        required: true
+        type: string
+      - description: User Data (JSON)
+        in: formData
+        name: user
+        type: string
+      - description: Documents
+        in: formData
+        name: documents
+        type: file
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Create Contract
+      tags:
+      - Contracts
+  /projects/{project_id}/lots/{lot_id}/contracts/{contract_id}:
+    get:
+      consumes:
+      - application/json
+      description: Get a contract by ID
+      parameters:
+      - description: Contract ID
+        in: path
+        name: contract_id
+        required: true
+        type: integer
+      - description: Project ID
+        in: path
+        name: project_id
+        required: true
+        type: integer
+      - description: Lot ID
+        in: path
+        name: lot_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.ContractResponse'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get Contract
+      tags:
+      - Contracts
+    patch:
+      consumes:
+      - application/json
+      description: Update a contract
+      parameters:
+      - description: Contract ID
+        in: path
+        name: contract_id
+        required: true
+        type: integer
+      - description: Project ID
+        in: path
+        name: project_id
+        required: true
+        type: integer
+      - description: Lot ID
+        in: path
+        name: lot_id
+        required: true
+        type: integer
+      - description: Contract Data
+        in: body
+        name: request
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update Contract
+      tags:
+      - Contracts
+  /projects/{project_id}/lots/{lot_id}/contracts/{contract_id}/approve:
+    post:
+      consumes:
+      - application/json
+      description: Approve a pending contract (Admin)
+      parameters:
+      - description: Contract ID
+        in: path
+        name: contract_id
+        required: true
+        type: integer
+      - description: Project ID
+        in: path
+        name: project_id
+        required: true
+        type: integer
+      - description: Lot ID
+        in: path
+        name: lot_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.ContractResponse'
+      security:
+      - BearerAuth: []
+      summary: Approve Contract
+      tags:
+      - Contracts
+  /projects/{project_id}/lots/{lot_id}/contracts/{contract_id}/cancel:
+    post:
+      consumes:
+      - application/json
+      description: Cancel an active contract (Admin)
+      parameters:
+      - description: Contract ID
+        in: path
+        name: contract_id
+        required: true
+        type: integer
+      - description: Project ID
+        in: path
+        name: project_id
+        required: true
+        type: integer
+      - description: Lot ID
+        in: path
+        name: lot_id
+        required: true
+        type: integer
+      - description: Note
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.CancelContractRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.ContractResponse'
+      security:
+      - BearerAuth: []
+      summary: Cancel Contract
+      tags:
+      - Contracts
+  /projects/{project_id}/lots/{lot_id}/contracts/{contract_id}/capital_repayment:
+    post:
+      consumes:
+      - application/json
+      description: Apply capital repayment to contract (Admin)
+      parameters:
+      - description: Contract ID
+        in: path
+        name: contract_id
+        required: true
+        type: integer
+      - description: Project ID
+        in: path
+        name: project_id
+        required: true
+        type: integer
+      - description: Lot ID
+        in: path
+        name: lot_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Capital Repayment
+      tags:
+      - Contracts
+  /projects/{project_id}/lots/{lot_id}/contracts/{contract_id}/ledger:
+    get:
+      consumes:
+      - application/json
+      description: Get ledger entries for a contract
+      parameters:
+      - description: Contract ID
+        in: path
+        name: contract_id
+        required: true
+        type: integer
+      - description: Project ID
+        in: path
+        name: project_id
+        required: true
+        type: integer
+      - description: Lot ID
+        in: path
+        name: lot_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get Contract Ledger
+      tags:
+      - Contracts
+  /projects/{project_id}/lots/{lot_id}/contracts/{contract_id}/payments:
+    get:
+      consumes:
+      - application/json
+      description: Get payments for a contract
+      parameters:
+      - description: Contract ID
+        in: path
+        name: contract_id
+        required: true
+        type: integer
+      - description: Project ID
+        in: path
+        name: project_id
+        required: true
+        type: integer
+      - description: Lot ID
+        in: path
+        name: lot_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List Contract Payments
+      tags:
+      - Payments
+  /projects/{project_id}/lots/{lot_id}/contracts/{contract_id}/payments/{payment_id}:
+    get:
+      consumes:
+      - application/json
+      description: Get a payment for a specific contract
+      parameters:
+      - description: Contract ID
+        in: path
+        name: contract_id
+        required: true
+        type: integer
+      - description: Project ID
+        in: path
+        name: project_id
+        required: true
+        type: integer
+      - description: Lot ID
+        in: path
+        name: lot_id
+        required: true
+        type: integer
+      - description: Payment ID
+        in: path
+        name: payment_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.PaymentResponse'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get Contract Payment
+      tags:
+      - Payments
+  /projects/{project_id}/lots/{lot_id}/contracts/{contract_id}/payments/{payment_id}/approve:
+    post:
+      consumes:
+      - application/json
+      description: Approve a payment for a specific contract
+      parameters:
+      - description: Contract ID
+        in: path
+        name: contract_id
+        required: true
+        type: integer
+      - description: Project ID
+        in: path
+        name: project_id
+        required: true
+        type: integer
+      - description: Lot ID
+        in: path
+        name: lot_id
+        required: true
+        type: integer
+      - description: Payment ID
+        in: path
+        name: payment_id
+        required: true
+        type: integer
+      - description: Amount
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.ApprovePaymentRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.PaymentResponse'
+      security:
+      - BearerAuth: []
+      summary: Approve Contract Payment
+      tags:
+      - Payments
+  /projects/{project_id}/lots/{lot_id}/contracts/{contract_id}/payments/{payment_id}/receipt:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Upload receipt for a contract payment
+      parameters:
+      - description: Contract ID
+        in: path
+        name: contract_id
+        required: true
+        type: integer
+      - description: Project ID
+        in: path
+        name: project_id
+        required: true
+        type: integer
+      - description: Lot ID
+        in: path
+        name: lot_id
+        required: true
+        type: integer
+      - description: Payment ID
+        in: path
+        name: payment_id
+        required: true
+        type: integer
+      - description: Receipt File
+        in: formData
+        name: receipt
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Upload Contract Payment Receipt
+      tags:
+      - Payments
+  /projects/{project_id}/lots/{lot_id}/contracts/{contract_id}/payments/{payment_id}/reject:
+    post:
+      consumes:
+      - application/json
+      description: Reject a payment for a specific contract
+      parameters:
+      - description: Contract ID
+        in: path
+        name: contract_id
+        required: true
+        type: integer
+      - description: Project ID
+        in: path
+        name: project_id
+        required: true
+        type: integer
+      - description: Lot ID
+        in: path
+        name: lot_id
+        required: true
+        type: integer
+      - description: Payment ID
+        in: path
+        name: payment_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.PaymentResponse'
+      security:
+      - BearerAuth: []
+      summary: Reject Contract Payment
+      tags:
+      - Payments
+  /projects/{project_id}/lots/{lot_id}/contracts/{contract_id}/reject:
+    post:
+      consumes:
+      - application/json
+      description: Reject a pending contract (Admin)
+      parameters:
+      - description: Contract ID
+        in: path
+        name: contract_id
+        required: true
+        type: integer
+      - description: Project ID
+        in: path
+        name: project_id
+        required: true
+        type: integer
+      - description: Lot ID
+        in: path
+        name: lot_id
+        required: true
+        type: integer
+      - description: Reason
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.RejectContractRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.ContractResponse'
+      security:
+      - BearerAuth: []
+      summary: Reject Contract
+      tags:
+      - Contracts
+  /projects/{project_id}/lots/{lot_id}/contracts/{contract_id}/reopen:
+    post:
+      consumes:
+      - application/json
+      description: Reopen a cancelled contract (Admin)
+      parameters:
+      - description: Contract ID
+        in: path
+        name: contract_id
+        required: true
+        type: integer
+      - description: Project ID
+        in: path
+        name: project_id
+        required: true
+        type: integer
+      - description: Lot ID
+        in: path
+        name: lot_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Reopen Contract
+      tags:
+      - Contracts
+  /projects/import:
+    post:
+      consumes:
+      - application/json
+      description: Bulk import projects
+      parameters:
+      - description: Projects Data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.ImportProjectRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Import Projects
+      tags:
+      - Projects
+  /reports/commissions_csv:
+    get:
+      description: Download commissions report as CSV
+      produces:
+      - text/csv
+      responses:
+        "200":
+          description: commissions.csv
+          schema:
+            type: file
+      security:
+      - BearerAuth: []
+      summary: Commissions Report
+      tags:
+      - Reports
+  /reports/customer_record_pdf:
+    get:
+      description: Download customer record PDF (Hoja de Cliente)
+      parameters:
+      - description: Contract ID
+        in: query
+        name: contract_id
+        required: true
+        type: integer
+      produces:
+      - application/pdf
+      responses:
+        "200":
+          description: customer_record.pdf
+          schema:
+            type: file
+      security:
+      - BearerAuth: []
+      summary: Customer Record PDF
+      tags:
+      - Reports
+  /reports/overdue_payments_csv:
+    get:
+      description: Download overdue payments report as CSV
+      produces:
+      - text/csv
+      responses:
+        "200":
+          description: overdue.csv
+          schema:
+            type: file
+      security:
+      - BearerAuth: []
+      summary: Overdue Payments Report
+      tags:
+      - Reports
+  /reports/total_revenue_csv:
+    get:
+      description: Download total revenue report as CSV
+      produces:
+      - text/csv
+      responses:
+        "200":
+          description: revenue.csv
+          schema:
+            type: file
+      security:
+      - BearerAuth: []
+      summary: Revenue Report
+      tags:
+      - Reports
+  /reports/user_balance_pdf:
+    get:
+      description: Download user balance statement as PDF
+      parameters:
+      - description: User ID
+        in: query
+        name: user_id
+        required: true
+        type: integer
+      produces:
+      - application/pdf
+      responses:
+        "200":
+          description: balance.pdf
+          schema:
+            type: file
+      security:
+      - BearerAuth: []
+      summary: User Balance PDF
+      tags:
+      - Reports
+  /reports/user_information_pdf:
+    get:
+      description: Download user information sheet as PDF
+      parameters:
+      - description: User ID
+        in: query
+        name: user_id
+        required: true
+        type: integer
+      produces:
+      - application/pdf
+      responses:
+        "200":
+          description: info.pdf
+          schema:
+            type: file
+      security:
+      - BearerAuth: []
+      summary: User Information PDF
+      tags:
+      - Reports
+  /reports/user_promise_contract_pdf:
+    get:
+      description: Download contract promise PDF
+      parameters:
+      - description: Contract ID
+        in: query
+        name: contract_id
+        required: true
+        type: integer
+      produces:
+      - application/pdf
+      responses:
+        "200":
+          description: contract.pdf
+          schema:
+            type: file
+      security:
+      - BearerAuth: []
+      summary: Contract Promise PDF
+      tags:
+      - Reports
+  /reports/user_rescission_contract_pdf:
+    get:
+      description: Download contract rescission PDF
+      parameters:
+      - description: Contract ID
+        in: query
+        name: contract_id
+        required: true
+        type: integer
+      produces:
+      - application/pdf
+      responses:
+        "200":
+          description: rescission.pdf
+          schema:
+            type: file
+      security:
+      - BearerAuth: []
+      summary: Contract Rescission PDF
+      tags:
+      - Reports
+  /users:
+    get:
+      consumes:
+      - application/json
+      description: Get a paginated list of users
+      parameters:
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Items per page
+        in: query
+        name: per_page
+        type: integer
+      - description: Search by name or email
+        in: query
+        name: search_term
+        type: string
+      - description: Filter by role
+        in: query
+        name: role
+        type: string
+      - description: Filter by status
+        in: query
+        name: status
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List Users
+      tags:
+      - Users
+    post:
+      consumes:
+      - application/json
+      description: Create a new user
+      parameters:
+      - description: User Data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.CreateUserRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.UserResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Create User
+      tags:
+      - Users
+  /users/{user_id}:
+    delete:
+      consumes:
+      - application/json
+      description: Soft delete a user
+      parameters:
+      - description: User ID
+        in: path
+        name: user_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Delete User
+      tags:
+      - Users
+    get:
+      consumes:
+      - application/json
+      description: Get a user by ID
+      parameters:
+      - description: User ID
+        in: path
+        name: user_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.UserResponse'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get User
+      tags:
+      - Users
+    put:
+      consumes:
+      - application/json
+      description: Update user details
+      parameters:
+      - description: User ID
+        in: path
+        name: user_id
+        required: true
+        type: integer
+      - description: User Fields
+        in: body
+        name: request
+        required: true
+        schema:
+          additionalProperties:
+            type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.UserResponse'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update User
+      tags:
+      - Users
+  /users/{user_id}/change_password:
+    patch:
+      consumes:
+      - application/json
+      description: Change current user's password
+      parameters:
+      - description: User ID
+        in: path
+        name: user_id
+        required: true
+        type: integer
+      - description: Password Data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.ChangePasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Change Password
+      tags:
+      - Users
+  /users/{user_id}/contracts:
+    get:
+      consumes:
+      - application/json
+      description: List contracts for a user
+      parameters:
+      - description: User ID
+        in: path
+        name: user_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get User Contracts
+      tags:
+      - Users
+  /users/{user_id}/payment_history:
+    get:
+      consumes:
+      - application/json
+      description: Get payment history for a user
+      parameters:
+      - description: User ID
+        in: path
+        name: user_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get Payment History
+      tags:
+      - Users
+  /users/{user_id}/payments:
+    get:
+      consumes:
+      - application/json
+      description: List payments for a user
+      parameters:
+      - description: User ID
+        in: path
+        name: user_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get User Payments
+      tags:
+      - Users
+  /users/{user_id}/resend_confirmation:
+    post:
+      consumes:
+      - application/json
+      description: Resend email confirmation
+      parameters:
+      - description: User ID
+        in: path
+        name: user_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Resend Confirmation
+      tags:
+      - Users
+  /users/{user_id}/restore:
+    post:
+      consumes:
+      - application/json
+      description: Restore a soft-deleted user
+      parameters:
+      - description: User ID
+        in: path
+        name: user_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Restore User
+      tags:
+      - Users
+  /users/{user_id}/summary:
+    get:
+      consumes:
+      - application/json
+      description: Get summary stats for a user
+      parameters:
+      - description: User ID
+        in: path
+        name: user_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get User Summary
+      tags:
+      - Users
+  /users/{user_id}/toggle_status:
+    put:
+      consumes:
+      - application/json
+      description: Enable or disable a user
+      parameters:
+      - description: User ID
+        in: path
+        name: user_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.UserResponse'
+      security:
+      - BearerAuth: []
+      summary: Toggle User Status
+      tags:
+      - Users
+  /users/{user_id}/update_locale:
+    patch:
+      consumes:
+      - application/json
+      description: Update user's locale preference
+      parameters:
+      - description: User ID
+        in: path
+        name: user_id
+        required: true
+        type: integer
+      - description: Locale Data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.UpdateLocaleRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update Locale
+      tags:
+      - Users
+  /users/send_recovery_code:
+    post:
+      consumes:
+      - application/json
+      description: Send password recovery code to email
+      parameters:
+      - description: Email
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.SendRecoveryCodeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Send Recovery Code
+      tags:
+      - Users
+  /users/update_password_with_code:
+    post:
+      consumes:
+      - application/json
+      description: Reset password using recovery code
+      parameters:
+      - description: Reset Data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.UpdatePasswordWithCodeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Reset Password
+      tags:
+      - Users
+  /users/verify_recovery_code:
+    post:
+      consumes:
+      - application/json
+      description: Verify if recovery code is valid
+      parameters:
+      - description: Verification Data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.VerifyRecoveryCodeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: boolean
+            type: object
+      summary: Verify Recovery Code
+      tags:
+      - Users
+schemes:
+- http
+securityDefinitions:
+  BearerAuth:
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

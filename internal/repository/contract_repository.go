@@ -1,0 +1,648 @@
+package repository
+
+import (
+	"context"
+	"strings"
+
+	"github.com/sjperalta/fintera-api/internal/models"
+	"gorm.io/gorm"
+)
+
+// ContractRepository defines the interface for contract data access
+type ContractRepository interface {
+	FindByID(ctx context.Context, id uint) (*models.Contract, error)
+	FindByIDWithDetails(ctx context.Context, id uint) (*models.Contract, error)
+	FindByLot(ctx context.Context, lotID uint) ([]models.Contract, error)
+	FindByUser(ctx context.Context, userID uint) ([]models.Contract, error)
+	Create(ctx context.Context, contract *models.Contract) error
+	Update(ctx context.Context, contract *models.Contract) error
+	Delete(ctx context.Context, id uint) error
+	List(ctx context.Context, query *ContractQuery) ([]models.Contract, int64, error)
+	FindActiveByLot(ctx context.Context, lotID uint) (*models.Contract, error)
+	FindPendingReservations(ctx context.Context, olderThan int) ([]models.Contract, error)
+}
+
+// ContractQuery extends ListQuery with contract-specific filters
+type ContractQuery struct {
+	*ListQuery
+	UserID    uint
+	IsAdmin   bool
+	Status    string
+	LotID     uint
+	ProjectID uint
+}
+
+type contractRepository struct {
+	db *gorm.DB
+}
+
+// NewContractRepository creates a new contract repository
+func NewContractRepository(db *gorm.DB) ContractRepository {
+	return &contractRepository{db: db}
+}
+
+func (r *contractRepository) FindByID(ctx context.Context, id uint) (*models.Contract, error) {
+	var contract models.Contract
+	err := r.db.WithContext(ctx).First(&contract, id).Error
+	if err != nil {
+		return nil, err
+	}
+	return &contract, nil
+}
+
+func (r *contractRepository) FindByIDWithDetails(ctx context.Context, id uint) (*models.Contract, error) {
+	var contract models.Contract
+	err := r.db.WithContext(ctx).
+		Preload("Lot.Project").
+		Preload("ApplicantUser").
+		Preload("Creator").
+		Preload("Payments", func(db *gorm.DB) *gorm.DB {
+			return db.Order("due_date ASC")
+		}).
+		Preload("LedgerEntries", func(db *gorm.DB) *gorm.DB {
+			return db.Order("entry_date ASC")
+		}).
+		First(&contract, id).Error
+	if err != nil {
+		return nil, err
+	}
+	return &contract, nil
+}
+
+func (r *contractRepository) FindByLot(ctx context.Context, lotID uint) ([]models.Contract, error) {
+	var contracts []models.Contract
+	err := r.db.WithContext(ctx).
+		Where("lot_id = ?", lotID).
+		Preload("ApplicantUser").
+		Find(&contracts).Error
+	return contracts, err
+}
+
+func (r *contractRepository) FindByUser(ctx context.Context, userID uint) ([]models.Contract, error) {
+	var contracts []models.Contract
+	err := r.db.WithContext(ctx).
+		Where("applicant_user_id = ?", userID).
+		Preload("Lot.Project").
+		Preload("Payments").
+		Find(&contracts).Error
+	return contracts, err
+}
+
+func (r *contractRepository) Create(ctx context.Context, contract *models.Contract) error {
+	return r.db.WithContext(ctx).Create(contract).Error
+}
+
+func (r *contractRepository) Update(ctx context.Context, contract *models.Contract) error {
+	return r.db.WithContext(ctx).Save(contract).Error
+}
+
+func (r *contractRepository) Delete(ctx context.Context, id uint) error {
+	return r.db.WithContext(ctx).Delete(&models.Contract{}, id).Error
+}
+
+func (r *contractRepository) List(ctx context.Context, query *ContractQuery) ([]models.Contract, int64, error) {
+	var contracts []models.Contract
+	var total int64
+
+	db := r.db.WithContext(ctx).Model(&models.Contract{})
+
+	// Filter by creator if not admin
+	if !query.IsAdmin && query.UserID > 0 {
+		db = db.Where("creator_id = ?", query.UserID)
+	}
+
+	// Apply status filter
+	if query.Status != "" {
+		db = db.Where("contracts.status = ?", query.Status)
+	}
+
+	// Apply lot filter
+	if query.LotID > 0 {
+		db = db.Where("lot_id = ?", query.LotID)
+	}
+
+	// Apply search
+	if query.Search != "" {
+		search := "%" + query.Search + "%"
+		db = db.Joins("LEFT JOIN users ON users.id = contracts.applicant_user_id").
+			Joins("LEFT JOIN lots ON lots.id = contracts.lot_id").
+			Joins("LEFT JOIN projects ON projects.id = lots.project_id").
+			Where("users.full_name ILIKE ? OR users.email ILIKE ? OR lots.name ILIKE ? OR projects.name ILIKE ?",
+				search, search, search, search)
+	}
+
+	// Count total
+	db.Count(&total)
+
+	// Apply sorting
+	if query.SortBy != "" {
+		order := query.SortBy
+		if query.SortDir == "desc" {
+			order += " DESC"
+		}
+		db = db.Order(order)
+	} else {
+		db = db.Order("contracts.created_at DESC")
+	}
+
+	// Apply pagination
+	if query.PerPage > 0 {
+		db = db.Offset((query.Page - 1) * query.PerPage).Limit(query.PerPage)
+	}
+
+	// Load associations
+	err := db.
+		Preload("Lot.Project").
+		Preload("ApplicantUser").
+		Preload("Creator").
+		Preload("Payments").
+		Find(&contracts).Error
+
+	return contracts, total, err
+}
+
+func (r *contractRepository) FindActiveByLot(ctx context.Context, lotID uint) (*models.Contract, error) {
+	var contract models.Contract
+	err := r.db.WithContext(ctx).
+		Where("lot_id = ? AND active = ?", lotID, true).
+		First(&contract).Error
+	if err != nil {
+		return nil, err
+	}
+	return &contract, nil
+}
+
+func (r *contractRepository) FindPendingReservations(ctx context.Context, olderThanHours int) ([]models.Contract, error) {
+	var contracts []models.Contract
+	err := r.db.WithContext(ctx).
+		Where("contracts.status = ? AND contracts.created_at < NOW() - INTERVAL '? hours'", models.ContractStatusSubmitted, olderThanHours).
+		Preload("Lot").
+		Preload("ApplicantUser").
+		Find(&contracts).Error
+	return contracts, err
+}
+
+// PaymentStats holds monthly payment statistics
+type PaymentStats struct {
+	PendingThisMonth   float64 `json:"pending_this_month"`
+	CollectedThisMonth float64 `json:"collected_this_month"`
+	TotalOverdue       float64 `json:"total_overdue"`
+}
+
+// PaymentRepository defines the interface for payment data access
+type PaymentRepository interface {
+	FindByID(ctx context.Context, id uint) (*models.Payment, error)
+	FindByContract(ctx context.Context, contractID uint) ([]models.Payment, error)
+	Create(ctx context.Context, payment *models.Payment) error
+	Update(ctx context.Context, payment *models.Payment) error
+	Delete(ctx context.Context, id uint) error
+	DeleteByContract(ctx context.Context, contractID uint) error
+	List(ctx context.Context, query *ListQuery) ([]models.Payment, int64, error)
+	FindOverdue(ctx context.Context) ([]models.Payment, error)
+	FindPendingByUser(ctx context.Context, userID uint) ([]models.Payment, error)
+	FindPaidByMonth(ctx context.Context, month, year int) ([]models.Payment, error)
+	GetMonthlyStats(ctx context.Context) (*PaymentStats, error)
+}
+
+type paymentRepository struct {
+	db *gorm.DB
+}
+
+// NewPaymentRepository creates a new payment repository
+func NewPaymentRepository(db *gorm.DB) PaymentRepository {
+	return &paymentRepository{db: db}
+}
+
+func (r *paymentRepository) FindByID(ctx context.Context, id uint) (*models.Payment, error) {
+	var payment models.Payment
+	err := r.db.WithContext(ctx).
+		Preload("Contract.Lot.Project").
+		Preload("Contract.ApplicantUser").
+		First(&payment, id).Error
+	if err != nil {
+		return nil, err
+	}
+	return &payment, nil
+}
+
+func (r *paymentRepository) FindByContract(ctx context.Context, contractID uint) ([]models.Payment, error) {
+	var payments []models.Payment
+	err := r.db.WithContext(ctx).
+		Where("contract_id = ?", contractID).
+		Order("due_date ASC").
+		Find(&payments).Error
+	return payments, err
+}
+
+func (r *paymentRepository) Create(ctx context.Context, payment *models.Payment) error {
+	return r.db.WithContext(ctx).Create(payment).Error
+}
+
+func (r *paymentRepository) Update(ctx context.Context, payment *models.Payment) error {
+	return r.db.WithContext(ctx).Save(payment).Error
+}
+
+func (r *paymentRepository) Delete(ctx context.Context, id uint) error {
+	return r.db.WithContext(ctx).Delete(&models.Payment{}, id).Error
+}
+
+func (r *paymentRepository) DeleteByContract(ctx context.Context, contractID uint) error {
+	return r.db.WithContext(ctx).Where("contract_id = ?", contractID).Delete(&models.Payment{}).Error
+}
+
+func (r *paymentRepository) List(ctx context.Context, query *ListQuery) ([]models.Payment, int64, error) {
+	var payments []models.Payment
+	var total int64
+
+	db := r.db.WithContext(ctx).Model(&models.Payment{})
+
+	// Apply status filter
+	// Apply status filter
+	statusFilter := query.Filters["status"]
+	if statusFilter != "" {
+		if strings.HasPrefix(statusFilter, "[") && strings.HasSuffix(statusFilter, "]") {
+			// Handle format [paid|submitted]
+			inner := statusFilter[1 : len(statusFilter)-1]
+			statuses := strings.Split(inner, "|")
+			db = db.Where("payments.status IN ?", statuses)
+		} else if strings.Contains(statusFilter, ",") {
+			// Handle comma-separated list
+			statuses := strings.Split(statusFilter, ",")
+			db = db.Where("payments.status IN ?", statuses)
+		} else {
+			db = db.Where("payments.status = ?", statusFilter)
+		}
+	}
+
+	// Count total
+	db.Count(&total)
+
+	// Apply sorting
+	if query.SortBy != "" {
+		order := query.SortBy
+		if query.SortDir == "desc" {
+			order += " DESC"
+		}
+		db = db.Order(order)
+	} else {
+		db = db.Order("due_date ASC")
+	}
+
+	// Apply pagination
+	if query.PerPage > 0 {
+		db = db.Offset((query.Page - 1) * query.PerPage).Limit(query.PerPage)
+	}
+
+	err := db.
+		Preload("Contract.Lot.Project").
+		Preload("Contract.ApplicantUser").
+		Find(&payments).Error
+
+	return payments, total, err
+}
+
+func (r *paymentRepository) FindOverdue(ctx context.Context) ([]models.Payment, error) {
+	var payments []models.Payment
+	err := r.db.WithContext(ctx).
+		Where("payments.status = ? AND payments.due_date < CURRENT_DATE", models.PaymentStatusPending).
+		Preload("Contract.ApplicantUser").
+		Order("due_date ASC").
+		Find(&payments).Error
+	return payments, err
+}
+
+func (r *paymentRepository) FindPendingByUser(ctx context.Context, userID uint) ([]models.Payment, error) {
+	var payments []models.Payment
+	err := r.db.WithContext(ctx).
+		Joins("JOIN contracts ON contracts.id = payments.contract_id").
+		Where("contracts.applicant_user_id = ? AND payments.status IN ?", userID,
+			[]string{models.PaymentStatusPending, models.PaymentStatusSubmitted}).
+		Preload("Contract.Lot.Project").
+		Order("payments.due_date ASC").
+		Find(&payments).Error
+	return payments, err
+}
+
+func (r *paymentRepository) FindPaidByMonth(ctx context.Context, month, year int) ([]models.Payment, error) {
+	var payments []models.Payment
+	err := r.db.WithContext(ctx).
+		Where("payments.status = ? AND EXTRACT(MONTH FROM payments.payment_date) = ? AND EXTRACT(YEAR FROM payments.payment_date) = ?",
+			models.PaymentStatusPaid, month, year).
+		Order("payment_date ASC").
+		Find(&payments).Error
+	return payments, err
+}
+
+func (r *paymentRepository) GetMonthlyStats(ctx context.Context) (*PaymentStats, error) {
+	stats := &PaymentStats{}
+
+	// Get current month start and end
+	var pendingThisMonth, collectedThisMonth, totalOverdue float64
+
+	// 1. Pending payments for current month
+	err := r.db.WithContext(ctx).
+		Model(&models.Payment{}).
+		Select("COALESCE(SUM(amount), 0)").
+		Where("payments.status IN ? AND EXTRACT(MONTH FROM due_date) = EXTRACT(MONTH FROM CURRENT_DATE) AND EXTRACT(YEAR FROM due_date) = EXTRACT(YEAR FROM CURRENT_DATE)",
+			[]string{models.PaymentStatusPending, models.PaymentStatusSubmitted}).
+		Scan(&pendingThisMonth).Error
+	if err != nil {
+		return nil, err
+	}
+
+	// 2. Collected payments for current month
+	err = r.db.WithContext(ctx).
+		Model(&models.Payment{}).
+		Select("COALESCE(SUM(paid_amount), 0)").
+		Where("payments.status = ? AND EXTRACT(MONTH FROM payment_date) = EXTRACT(MONTH FROM CURRENT_DATE) AND EXTRACT(YEAR FROM payment_date) = EXTRACT(YEAR FROM CURRENT_DATE)",
+			models.PaymentStatusPaid).
+		Scan(&collectedThisMonth).Error
+	if err != nil {
+		return nil, err
+	}
+
+	// 3. Total overdue payments
+	err = r.db.WithContext(ctx).
+		Model(&models.Payment{}).
+		Select("COALESCE(SUM(amount), 0)").
+		Where("payments.status = ? AND due_date < CURRENT_DATE", models.PaymentStatusPending).
+		Scan(&totalOverdue).Error
+	if err != nil {
+		return nil, err
+	}
+
+	stats.PendingThisMonth = pendingThisMonth
+	stats.CollectedThisMonth = collectedThisMonth
+	stats.TotalOverdue = totalOverdue
+
+	return stats, nil
+}
+
+// ProjectRepository defines the interface for project data access
+type ProjectRepository interface {
+	FindByID(ctx context.Context, id uint) (*models.Project, error)
+	Create(ctx context.Context, project *models.Project) error
+	Update(ctx context.Context, project *models.Project) error
+	Delete(ctx context.Context, id uint) error
+	List(ctx context.Context, query *ListQuery) ([]models.Project, int64, error)
+	FindAll(ctx context.Context) ([]models.Project, error)
+}
+
+type projectRepository struct {
+	db *gorm.DB
+}
+
+func NewProjectRepository(db *gorm.DB) ProjectRepository {
+	return &projectRepository{db: db}
+}
+
+func (r *projectRepository) FindByID(ctx context.Context, id uint) (*models.Project, error) {
+	var project models.Project
+	err := r.db.WithContext(ctx).Preload("Lots").First(&project, id).Error
+	if err != nil {
+		return nil, err
+	}
+	return &project, nil
+}
+
+func (r *projectRepository) Create(ctx context.Context, project *models.Project) error {
+	return r.db.WithContext(ctx).Create(project).Error
+}
+
+func (r *projectRepository) Update(ctx context.Context, project *models.Project) error {
+	return r.db.WithContext(ctx).Save(project).Error
+}
+
+func (r *projectRepository) Delete(ctx context.Context, id uint) error {
+	return r.db.WithContext(ctx).Delete(&models.Project{}, id).Error
+}
+
+func (r *projectRepository) List(ctx context.Context, query *ListQuery) ([]models.Project, int64, error) {
+	var projects []models.Project
+	var total int64
+
+	db := r.db.WithContext(ctx).Model(&models.Project{})
+
+	if query.Search != "" {
+		search := "%" + query.Search + "%"
+		db = db.Where("name ILIKE ? OR address ILIKE ?", search, search)
+	}
+
+	db.Count(&total)
+
+	if query.SortBy != "" {
+		order := query.SortBy
+		if query.SortDir == "desc" {
+			order += " DESC"
+		}
+		db = db.Order(order)
+	} else {
+		db = db.Order("created_at DESC")
+	}
+
+	if query.PerPage > 0 {
+		db = db.Offset((query.Page - 1) * query.PerPage).Limit(query.PerPage)
+	}
+
+	err := db.Preload("Lots").Find(&projects).Error
+	return projects, total, err
+}
+
+func (r *projectRepository) FindAll(ctx context.Context) ([]models.Project, error) {
+	var projects []models.Project
+	err := r.db.WithContext(ctx).Find(&projects).Error
+	return projects, err
+}
+
+// LotRepository defines the interface for lot data access
+type LotRepository interface {
+	FindByID(ctx context.Context, id uint) (*models.Lot, error)
+	FindByProject(ctx context.Context, projectID uint) ([]models.Lot, error)
+	Create(ctx context.Context, lot *models.Lot) error
+	Update(ctx context.Context, lot *models.Lot) error
+	Delete(ctx context.Context, id uint) error
+	List(ctx context.Context, projectID uint, query *ListQuery) ([]models.Lot, int64, error)
+}
+
+type lotRepository struct {
+	db *gorm.DB
+}
+
+func NewLotRepository(db *gorm.DB) LotRepository {
+	return &lotRepository{db: db}
+}
+
+func (r *lotRepository) FindByID(ctx context.Context, id uint) (*models.Lot, error) {
+	var lot models.Lot
+	err := r.db.WithContext(ctx).Preload("Project").First(&lot, id).Error
+	if err != nil {
+		return nil, err
+	}
+	return &lot, nil
+}
+
+func (r *lotRepository) FindByProject(ctx context.Context, projectID uint) ([]models.Lot, error) {
+	var lots []models.Lot
+	err := r.db.WithContext(ctx).
+		Where("project_id = ?", projectID).
+		Order("name ASC").
+		Find(&lots).Error
+	return lots, err
+}
+
+func (r *lotRepository) Create(ctx context.Context, lot *models.Lot) error {
+	return r.db.WithContext(ctx).Create(lot).Error
+}
+
+func (r *lotRepository) Update(ctx context.Context, lot *models.Lot) error {
+	return r.db.WithContext(ctx).Save(lot).Error
+}
+
+func (r *lotRepository) Delete(ctx context.Context, id uint) error {
+	return r.db.WithContext(ctx).Delete(&models.Lot{}, id).Error
+}
+
+func (r *lotRepository) List(ctx context.Context, projectID uint, query *ListQuery) ([]models.Lot, int64, error) {
+	var lots []models.Lot
+	var total int64
+
+	db := r.db.WithContext(ctx).Model(&models.Lot{}).Where("project_id = ?", projectID)
+
+	if query.Search != "" {
+		search := "%" + query.Search + "%"
+		db = db.Where("name ILIKE ? OR address ILIKE ?", search, search)
+	}
+
+	if query.Filters["status"] != "" {
+		db = db.Where("lots.status = ?", query.Filters["status"])
+	}
+
+	db.Count(&total)
+
+	if query.SortBy != "" {
+		order := query.SortBy
+		if query.SortDir == "desc" {
+			order += " DESC"
+		}
+		db = db.Order(order)
+	} else {
+		db = db.Order("name ASC")
+	}
+
+	if query.PerPage > 0 {
+		db = db.Offset((query.Page - 1) * query.PerPage).Limit(query.PerPage)
+	}
+
+	err := db.Preload("Project").Find(&lots).Error
+	return lots, total, err
+}
+
+// NotificationRepository defines the interface for notification data access
+type NotificationRepository interface {
+	FindByID(ctx context.Context, id uint) (*models.Notification, error)
+	FindByUser(ctx context.Context, userID uint, query *ListQuery) ([]models.Notification, int64, error)
+	Create(ctx context.Context, notification *models.Notification) error
+	Update(ctx context.Context, notification *models.Notification) error
+	Delete(ctx context.Context, id uint) error
+	MarkAllAsRead(ctx context.Context, userID uint) error
+	CountUnread(ctx context.Context, userID uint) (int64, error)
+}
+
+type notificationRepository struct {
+	db *gorm.DB
+}
+
+func NewNotificationRepository(db *gorm.DB) NotificationRepository {
+	return &notificationRepository{db: db}
+}
+
+func (r *notificationRepository) FindByID(ctx context.Context, id uint) (*models.Notification, error) {
+	var notification models.Notification
+	err := r.db.WithContext(ctx).First(&notification, id).Error
+	if err != nil {
+		return nil, err
+	}
+	return &notification, nil
+}
+
+func (r *notificationRepository) FindByUser(ctx context.Context, userID uint, query *ListQuery) ([]models.Notification, int64, error) {
+	var notifications []models.Notification
+	var total int64
+
+	db := r.db.WithContext(ctx).Model(&models.Notification{}).Where("user_id = ?", userID)
+
+	db.Count(&total)
+	db = db.Order("created_at DESC")
+
+	if query.PerPage > 0 {
+		db = db.Offset((query.Page - 1) * query.PerPage).Limit(query.PerPage)
+	}
+
+	err := db.Find(&notifications).Error
+	return notifications, total, err
+}
+
+func (r *notificationRepository) Create(ctx context.Context, notification *models.Notification) error {
+	return r.db.WithContext(ctx).Create(notification).Error
+}
+
+func (r *notificationRepository) Update(ctx context.Context, notification *models.Notification) error {
+	return r.db.WithContext(ctx).Save(notification).Error
+}
+
+func (r *notificationRepository) Delete(ctx context.Context, id uint) error {
+	return r.db.WithContext(ctx).Delete(&models.Notification{}, id).Error
+}
+
+func (r *notificationRepository) MarkAllAsRead(ctx context.Context, userID uint) error {
+	return r.db.WithContext(ctx).
+		Model(&models.Notification{}).
+		Where("user_id = ? AND read_at IS NULL", userID).
+		Update("read_at", gorm.Expr("NOW()")).Error
+}
+
+func (r *notificationRepository) CountUnread(ctx context.Context, userID uint) (int64, error) {
+	var count int64
+	err := r.db.WithContext(ctx).
+		Model(&models.Notification{}).
+		Where("user_id = ? AND read_at IS NULL", userID).
+		Count(&count).Error
+	return count, err
+}
+
+// RefreshTokenRepository defines the interface for refresh token data access
+type RefreshTokenRepository interface {
+	FindByToken(ctx context.Context, token string) (*models.RefreshToken, error)
+	Create(ctx context.Context, rt *models.RefreshToken) error
+	Delete(ctx context.Context, token string) error
+	DeleteByUser(ctx context.Context, userID uint) error
+}
+
+type refreshTokenRepository struct {
+	db *gorm.DB
+}
+
+func NewRefreshTokenRepository(db *gorm.DB) RefreshTokenRepository {
+	return &refreshTokenRepository{db: db}
+}
+
+func (r *refreshTokenRepository) FindByToken(ctx context.Context, token string) (*models.RefreshToken, error) {
+	var rt models.RefreshToken
+	err := r.db.WithContext(ctx).Where("token = ?", token).First(&rt).Error
+	if err != nil {
+		return nil, err
+	}
+	return &rt, nil
+}
+
+func (r *refreshTokenRepository) Create(ctx context.Context, rt *models.RefreshToken) error {
+	return r.db.WithContext(ctx).Create(rt).Error
+}
+
+func (r *refreshTokenRepository) Delete(ctx context.Context, token string) error {
+	return r.db.WithContext(ctx).Where("token = ?", token).Delete(&models.RefreshToken{}).Error
+}
+
+func (r *refreshTokenRepository) DeleteByUser(ctx context.Context, userID uint) error {
+	return r.db.WithContext(ctx).Where("user_id = ?", userID).Delete(&models.RefreshToken{}).Error
+}

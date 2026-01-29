@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #2c3e50;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 40px 20px;
+            margin: 0;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #27ae60 0%, #229954 100%);
+            padding: 30px 20px;
+            text-align: center;
+        }
+
+        .header h1 {
+            color: #ffffff;
+            margin: 0;
+            font-size: 28px;
+            font-weight: 600;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .greeting {
+            font-size: 18px;
+            color: #27ae60;
+            font-weight: 600;
+            margin-bottom: 15px;
+        }
+
+        .intro {
+            color: #34495e;
+            line-height: 1.6;
+            margin-bottom: 25px;
+        }
+
+        .details-list {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+
+        .details-list li {
+            padding: 10px 0;
+            border-bottom: 1px solid #e9ecef;
+            color: #2c3e50;
+        }
+
+        .details-list li:last-child {
+            border-bottom: none;
+        }
+
+        .details-list .highlight {
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+            color: white;
+            padding: 12px;
+            border-radius: 4px;
+            margin: 5px 0;
+        }
+
+        .cta-button {
+            display: block;
+            width: fit-content;
+            margin: 30px auto;
+            padding: 15px 40px;
+            background: linear-gradient(135deg, #27ae60 0%, #229954 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 25px;
+            font-weight: 600;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(39, 174, 96, 0.3);
+            transition: transform 0.2s;
+        }
+
+        .cta-button:hover {
+            transform: translateY(-2px);
+        }
+
+        .footer {
+            background: #f8f9fa;
+            padding: 20px;
+            text-align: center;
+            color: #7f8c8d;
+            font-size: 12px;
+            border-top: 1px solid #e9ecef;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>✅ Tu pago ha sido aprobado</h1>
+        </div>
+
+        <div class="content">
+            <p class="greeting">Hola {{.Name}},</p>
+
+            <p class="intro">Nos complace informarte que tu pago ha sido aprobado. Aquí tienes los detalles de la
+                transacción:</p>
+
+            <ul class="details-list">
+                <li><strong>📍 Proyecto:</strong> {{.ProjectName}}</li>
+                <li><strong>🏘️ Lote:</strong> {{.LotName}}</li>
+                <li><strong>💵 Monto del pago:</strong> {{.PaymentAmount}}</li>
+                <li><strong>📊 Monto de Interés:</strong> {{.InterestAmount}}</li>
+                <li class="highlight"><strong>💰 Monto Total:</strong> {{.TotalAmount}}</li>
+                <li><strong>📅 Fecha de vencimiento:</strong> {{.DueDate}}</li>
+                <li><strong>✅ Fecha de aprobación:</strong> {{.ApprovedAt}}</li>
+            </ul>
+
+            <p class="intro">Gracias por confiar en Fintera.</p>
+
+            <a href="{{.AppURL}}/dashboard" class="cta-button">Ver Plataforma</a>
+        </div>
+
+        <div class="footer">
+            <p>Si tienes alguna pregunta, por favor contacta a nuestro equipo de soporte.</p>
+        </div>
+    </div>
+</body>
+
+</html>

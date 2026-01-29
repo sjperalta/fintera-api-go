@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Registro de Cliente</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 10pt;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            font-size: 18pt;
+            font-weight: bold;
+            margin: 0;
+        }
+
+        h2 {
+            font-size: 12pt;
+            font-weight: bold;
+            margin-top: 15px;
+            margin-bottom: 5px;
+            border-bottom: 1px solid #ccc;
+            padding-bottom: 2px;
+        }
+
+        .row {
+            margin-bottom: 5px;
+        }
+
+        .label {
+            display: inline-block;
+            width: 140px;
+        }
+
+        .value {
+            font-weight: bold;
+        }
+
+        .footer {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            text-align: center;
+            font-size: 8pt;
+            color: #666;
+        }
+
+        .signatures {
+            margin-top: 50px;
+            width: 100%;
+        }
+
+        .signature-cell {
+            width: 45%;
+            text-align: center;
+            vertical-align: bottom;
+            height: 50px;
+        }
+
+        .signature-line {
+            border-top: 1px solid black;
+            width: 80%;
+            margin: 0 auto;
+            padding-top: 5px;
+            font-weight: bold;
+            font-size: 10pt;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <h1>INVERSIONES FAMA</h1>
+    </div>
+
+    <h2>Información general del Cliente</h2>
+    <div class="row"><span class="label">Nombre:</span> <span class="value">{{.ClientName}}</span></div>
+    <div class="row"><span class="label">Identificación:</span> <span class="value">{{.ClientID}}</span></div>
+    <div class="row"><span class="label">Telefono:</span> <span class="value">{{.ClientPhone}}</span></div>
+    <div class="row"><span class="label">Correo:</span> <span class="value">{{.ClientEmail}}</span></div>
+    <div class="row"><span class="label">Dirección:</span> <span class="value">{{.ClientAddress}}</span></div>
+
+    <h2>Información General del Terreno</h2>
+    <div class="row"><span class="label">Nombre del Proyecto:</span> <span class="value">{{.ProjectName}}</span></div>
+    <div class="row"><span class="label">No del Lote:</span> <span class="value">{{.LotName}}</span></div>
+    <div class="row"><span class="label">Dimensiones:</span> <span class="value">{{.Dimensions}}</span></div>
+    <div class="row"><span class="label">Medida:</span> <span class="value">{{.Area}}</span></div>
+    <div class="row"><span class="label">Número de Contrato:</span> <span class="value">{{.ContractID}}</span></div>
+    <div class="row"><span class="label">Tipo de Financiamiento:</span> <span class="value">{{.FinancingType}}</span>
+    </div>
+    <div class="row"><span class="label">Precio:</span> <span class="value">{{.Price}}</span></div>
+
+    {{if .HasOverride}}
+    <div class="row"><span class="label">Precio Base:</span> <span class="value">{{.BasePrice}}</span></div>
+    <div class="row"><span class="label">Precio Personalizado:</span> <span class="value">{{.OverridePrice}}</span>
+    </div>
+    {{end}}
+
+    <div class="row"><span class="label">Reserva:</span> <span class="value">{{.ReserveAmount}}</span></div>
+    <div class="row"><span class="label">Prima:</span> <span class="value">{{.DownPayment}}</span></div>
+    <div class="row"><span class="label">Cuota:</span> <span class="value">{{.InstallmentAmount}}</span></div>
+    <div class="row"><span class="label">Plazo:</span> <span class="value">{{.Term}}</span></div>
+    <div class="row"><span class="label">Fecha de Inicio:</span> <span class="value">{{.StartDate}}</span></div>
+    <div class="row"><span class="label">Fecha de Finalización:</span> <span class="value">{{.EndDate}}</span></div>
+
+    <h2>Información Adicional (Referencia)</h2>
+    <div class="row"><span class="label">Nombre Completo:</span> <span class="value">_______________________</span>
+    </div>
+    <div class="row"><span class="label">No. de Indentidad:</span> <span class="value">_______________________</span>
+    </div>
+    <div class="row"><span class="label">Celular:</span> <span class="value">_______________________</span></div>
+    <div class="row"><span class="label">Parentezco:</span> <span class="value">_______________________</span></div>
+
+    <table class="signatures">
+        <tr>
+            <td class="signature-cell">
+                <div class="signature-line">FIRMA DEL CLIENTE</div>
+            </td>
+            <td style="width: 10%;"></td>
+            <td class="signature-cell">
+                <div class="signature-line">FIRMA VENDEDOR</div>
+            </td>
+        </tr>
+    </table>
+
+    <div class="footer">
+        Generado automáticamente | Fecha: {{.GeneratedDate}}
+    </div>
+</body>
+
+</html>

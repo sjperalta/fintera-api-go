@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #2c3e50;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 40px 20px;
+            margin: 0;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #27ae60 0%, #229954 100%);
+            padding: 30px 20px;
+            text-align: center;
+        }
+
+        .header h1 {
+            color: #ffffff;
+            margin: 0;
+            font-size: 28px;
+            font-weight: 600;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .greeting {
+            font-size: 18px;
+            color: #27ae60;
+            font-weight: 600;
+            margin-bottom: 15px;
+        }
+
+        .intro {
+            color: #34495e;
+            line-height: 1.6;
+            margin-bottom: 25px;
+        }
+
+        .welcome-box {
+            background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+            padding: 25px;
+            margin: 25px 0;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .welcome-box h2 {
+            color: #27ae60;
+            margin: 0 0 10px 0;
+            font-size: 24px;
+        }
+
+        .welcome-box p {
+            color: #2c3e50;
+            margin: 0;
+        }
+
+        .cta-button {
+            display: block;
+            width: fit-content;
+            margin: 30px auto;
+            padding: 15px 40px;
+            background: linear-gradient(135deg, #27ae60 0%, #229954 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 25px;
+            font-weight: 600;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(39, 174, 96, 0.3);
+            transition: transform 0.2s;
+        }
+
+        .cta-button:hover {
+            transform: translateY(-2px);
+        }
+
+        .footer {
+            background: #f8f9fa;
+            padding: 20px;
+            text-align: center;
+            color: #7f8c8d;
+            font-size: 12px;
+            border-top: 1px solid #e9ecef;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>👋 ¡Bienvenido a Fintera!</h1>
+        </div>
+
+        <div class="content">
+            <p class="greeting">Estimado {{.Name}},</p>
+
+            <div class="welcome-box">
+                <h2>🎉 ¡Bienvenido a Fintera!</h2>
+                <p>Tu cuenta ha sido creada exitosamente. ¡Estamos emocionados de tenerte con nosotros!</p>
+            </div>
+
+            <p class="intro">Si tienes alguna pregunta, no dudes en comunicarte con nuestro equipo de soporte.</p>
+
+            <a href="{{.AppURL}}/login" class="cta-button">Iniciar Sesión</a>
+        </div>
+
+        <div class="footer">
+            <p>Saludos cordiales,<br>El equipo de Fintera</p>
+        </div>
+    </div>
+</body>
+
+</html>

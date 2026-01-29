@@ -1,0 +1,448 @@
+package handlers
+
+import (
+	"net/http"
+	"strconv"
+
+	"github.com/gin-gonic/gin"
+	"github.com/sjperalta/fintera-api/internal/middleware"
+	"github.com/sjperalta/fintera-api/internal/models"
+	"github.com/sjperalta/fintera-api/internal/repository"
+	"github.com/sjperalta/fintera-api/internal/services"
+)
+
+type UserHandler struct {
+	userService *services.UserService
+}
+
+func NewUserHandler(userService *services.UserService) *UserHandler {
+	return &UserHandler{userService: userService}
+}
+
+// @Summary List Users
+// @Description Get a paginated list of users
+// @Tags Users
+// @Accept json
+// @Produce json
+// @Param page query int false "Page number" default(1)
+// @Param per_page query int false "Items per page" default(20)
+// @Param search_term query string false "Search by name or email"
+// @Param role query string false "Filter by role"
+// @Param status query string false "Filter by status"
+// @Success 200 {object} map[string]interface{}
+// @Failure 500 {object} map[string]string
+// @Security BearerAuth
+// @Router /users [get]
+func (h *UserHandler) Index(c *gin.Context) {
+	query := repository.NewListQuery()
+	query.Page, _ = strconv.Atoi(c.DefaultQuery("page", "1"))
+	query.PerPage, _ = strconv.Atoi(c.DefaultQuery("per_page", "20"))
+	query.Search = c.Query("search_term")
+	query.Filters["role"] = c.Query("role")
+	query.Filters["status"] = c.Query("status")
+
+	users, total, err := h.userService.List(c.Request.Context(), query)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	var responses []models.UserResponse
+	for _, u := range users {
+		responses = append(responses, u.ToResponse())
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"users": responses,
+		"pagination": gin.H{
+			"page":        query.Page,
+			"per_page":    query.PerPage,
+			"total":       total,
+			"total_pages": (total + int64(query.PerPage) - 1) / int64(query.PerPage),
+		},
+	})
+}
+
+// @Summary Get User
+// @Description Get a user by ID
+// @Tags Users
+// @Accept json
+// @Produce json
+// @Param user_id path int true "User ID"
+// @Success 200 {object} models.UserResponse
+// @Failure 404 {object} map[string]string
+// @Security BearerAuth
+// @Router /users/{user_id} [get]
+func (h *UserHandler) Show(c *gin.Context) {
+	id, _ := strconv.ParseUint(c.Param("user_id"), 10, 32)
+	user, err := h.userService.FindByID(c.Request.Context(), uint(id))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Usuario no encontrado"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"user": user.ToResponse()})
+}
+
+type CreateUserRequest struct {
+	Email    string `json:"email" binding:"required,email"`
+	Password string `json:"password" binding:"required,min=6"`
+	FullName string `json:"full_name" binding:"required"`
+	Phone    string `json:"phone"`
+	Role     string `json:"role"`
+	Identity string `json:"identity"`
+	RTN      string `json:"rtn"`
+	Address  string `json:"address"`
+}
+
+// @Summary Create User
+// @Description Create a new user
+// @Tags Users
+// @Accept json
+// @Produce json
+// @Param request body CreateUserRequest true "User Data"
+// @Success 201 {object} models.UserResponse
+// @Failure 400 {object} map[string]string
+// @Security BearerAuth
+// @Router /users [post]
+func (h *UserHandler) Create(c *gin.Context) {
+	var req CreateUserRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	creatorID := middleware.GetUserID(c)
+	user := &models.User{
+		Email:     req.Email,
+		FullName:  req.FullName,
+		Phone:     req.Phone,
+		Role:      req.Role,
+		Identity:  req.Identity,
+		RTN:       req.RTN,
+		CreatedBy: &creatorID,
+	}
+	if req.Address != "" {
+		user.Address = &req.Address
+	}
+
+	if err := h.userService.Create(c.Request.Context(), user, req.Password); err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{"user": user.ToResponse(), "message": "Usuario creado exitosamente"})
+}
+
+// @Summary Update User
+// @Description Update user details
+// @Tags Users
+// @Accept json
+// @Produce json
+// @Param user_id path int true "User ID"
+// @Param request body map[string]string true "User Fields"
+// @Success 200 {object} models.UserResponse
+// @Failure 404 {object} map[string]string
+// @Security BearerAuth
+// @Router /users/{user_id} [put]
+func (h *UserHandler) Update(c *gin.Context) {
+	id, _ := strconv.ParseUint(c.Param("user_id"), 10, 32)
+	user, err := h.userService.FindByID(c.Request.Context(), uint(id))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Usuario no encontrado"})
+		return
+	}
+
+	var req map[string]interface{}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if v, ok := req["full_name"].(string); ok {
+		user.FullName = v
+	}
+	if v, ok := req["phone"].(string); ok {
+		user.Phone = v
+	}
+	if v, ok := req["address"].(string); ok {
+		user.Address = &v
+	}
+
+	if err := h.userService.Update(c.Request.Context(), user); err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"user": user.ToResponse(), "message": "Usuario actualizado exitosamente"})
+}
+
+// @Summary Delete User
+// @Description Soft delete a user
+// @Tags Users
+// @Accept json
+// @Produce json
+// @Param user_id path int true "User ID"
+// @Success 200 {object} map[string]string
+// @Security BearerAuth
+// @Router /users/{user_id} [delete]
+func (h *UserHandler) Delete(c *gin.Context) {
+	id, _ := strconv.ParseUint(c.Param("user_id"), 10, 32)
+	if err := h.userService.Delete(c.Request.Context(), uint(id)); err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Usuario eliminado exitosamente"})
+}
+
+// @Summary Toggle User Status
+// @Description Enable or disable a user
+// @Tags Users
+// @Accept json
+// @Produce json
+// @Param user_id path int true "User ID"
+// @Success 200 {object} models.UserResponse
+// @Security BearerAuth
+// @Router /users/{user_id}/toggle_status [put]
+func (h *UserHandler) ToggleStatus(c *gin.Context) {
+	id, _ := strconv.ParseUint(c.Param("user_id"), 10, 32)
+	user, err := h.userService.ToggleStatus(c.Request.Context(), uint(id))
+	if err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"user": user.ToResponse(), "message": "Estado actualizado"})
+}
+
+type ChangePasswordRequest struct {
+	CurrentPassword string `json:"current_password" binding:"required"`
+	NewPassword     string `json:"new_password" binding:"required,min=6"`
+}
+
+// @Summary Change Password
+// @Description Change current user's password
+// @Tags Users
+// @Accept json
+// @Produce json
+// @Param user_id path int true "User ID"
+// @Param request body ChangePasswordRequest true "Password Data"
+// @Success 200 {object} map[string]string
+// @Security BearerAuth
+// @Router /users/{user_id}/change_password [patch]
+func (h *UserHandler) ChangePassword(c *gin.Context) {
+	id, _ := strconv.ParseUint(c.Param("user_id"), 10, 32)
+	var req ChangePasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := h.userService.ChangePassword(c.Request.Context(), uint(id), req.CurrentPassword, req.NewPassword); err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Contraseña actualizada exitosamente"})
+}
+
+// @Summary Resend Confirmation
+// @Description Resend email confirmation
+// @Tags Users
+// @Accept json
+// @Produce json
+// @Param user_id path int true "User ID"
+// @Success 200 {object} map[string]string
+// @Security BearerAuth
+// @Router /users/{user_id}/resend_confirmation [post]
+func (h *UserHandler) ResendConfirmation(c *gin.Context) {
+	// TODO: Implement
+	c.JSON(http.StatusOK, gin.H{"message": "Email de confirmación reenviado"})
+}
+
+// @Summary Get User Contracts
+// @Description List contracts for a user
+// @Tags Users
+// @Accept json
+// @Produce json
+// @Param user_id path int true "User ID"
+// @Success 200 {object} map[string]interface{}
+// @Security BearerAuth
+// @Router /users/{user_id}/contracts [get]
+func (h *UserHandler) Contracts(c *gin.Context) {
+	// TODO: Implement
+	c.JSON(http.StatusOK, gin.H{"contracts": []interface{}{}})
+}
+
+// @Summary Get User Payments
+// @Description List payments for a user
+// @Tags Users
+// @Accept json
+// @Produce json
+// @Param user_id path int true "User ID"
+// @Success 200 {object} map[string]interface{}
+// @Security BearerAuth
+// @Router /users/{user_id}/payments [get]
+func (h *UserHandler) Payments(c *gin.Context) {
+	// TODO: Implement
+	c.JSON(http.StatusOK, gin.H{"payments": []interface{}{}})
+}
+
+// @Summary Get Payment History
+// @Description Get payment history for a user
+// @Tags Users
+// @Accept json
+// @Produce json
+// @Param user_id path int true "User ID"
+// @Success 200 {object} map[string]interface{}
+// @Security BearerAuth
+// @Router /users/{user_id}/payment_history [get]
+func (h *UserHandler) PaymentHistory(c *gin.Context) {
+	// TODO: Implement
+	c.JSON(http.StatusOK, gin.H{"payment_history": []interface{}{}})
+}
+
+// @Summary Get User Summary
+// @Description Get summary stats for a user
+// @Tags Users
+// @Accept json
+// @Produce json
+// @Param user_id path int true "User ID"
+// @Success 200 {object} map[string]interface{}
+// @Security BearerAuth
+// @Router /users/{user_id}/summary [get]
+func (h *UserHandler) Summary(c *gin.Context) {
+	// TODO: Implement
+	c.JSON(http.StatusOK, gin.H{"summary": gin.H{}})
+}
+
+// @Summary Restore User
+// @Description Restore a soft-deleted user
+// @Tags Users
+// @Accept json
+// @Produce json
+// @Param user_id path int true "User ID"
+// @Success 200 {object} map[string]string
+// @Security BearerAuth
+// @Router /users/{user_id}/restore [post]
+func (h *UserHandler) Restore(c *gin.Context) {
+	id, _ := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err := h.userService.Restore(c.Request.Context(), uint(id)); err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Usuario restaurado exitosamente"})
+}
+
+type UpdateLocaleRequest struct {
+	Locale string `json:"locale" binding:"required"`
+}
+
+// @Summary Update Locale
+// @Description Update user's locale preference
+// @Tags Users
+// @Accept json
+// @Produce json
+// @Param user_id path int true "User ID"
+// @Param request body UpdateLocaleRequest true "Locale Data"
+// @Success 200 {object} map[string]string
+// @Security BearerAuth
+// @Router /users/{user_id}/update_locale [patch]
+func (h *UserHandler) UpdateLocale(c *gin.Context) {
+	id, _ := strconv.ParseUint(c.Param("id"), 10, 32)
+	var req UpdateLocaleRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := h.userService.UpdateLocale(c.Request.Context(), uint(id), req.Locale); err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Idioma actualizado"})
+}
+
+type SendRecoveryCodeRequest struct {
+	Email string `json:"email" binding:"required,email"`
+}
+
+// @Summary Send Recovery Code
+// @Description Send password recovery code to email
+// @Tags Users
+// @Accept json
+// @Produce json
+// @Param request body SendRecoveryCodeRequest true "Email"
+// @Success 200 {object} map[string]string
+// @Router /users/send_recovery_code [post]
+func (h *UserHandler) SendRecoveryCode(c *gin.Context) {
+	var req SendRecoveryCodeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := h.userService.SendRecoveryCode(c.Request.Context(), req.Email); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al enviar código"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Código de recuperación enviado"})
+}
+
+type VerifyRecoveryCodeRequest struct {
+	Email string `json:"email" binding:"required,email"`
+	Code  string `json:"code" binding:"required,len=6"`
+}
+
+// @Summary Verify Recovery Code
+// @Description Verify if recovery code is valid
+// @Tags Users
+// @Accept json
+// @Produce json
+// @Param request body VerifyRecoveryCodeRequest true "Verification Data"
+// @Success 200 {object} map[string]bool
+// @Router /users/verify_recovery_code [post]
+func (h *UserHandler) VerifyRecoveryCode(c *gin.Context) {
+	var req VerifyRecoveryCodeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	valid, err := h.userService.VerifyRecoveryCode(c.Request.Context(), req.Email, req.Code)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al verificar código"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"valid": valid})
+}
+
+type UpdatePasswordWithCodeRequest struct {
+	Email       string `json:"email" binding:"required,email"`
+	Code        string `json:"code" binding:"required,len=6"`
+	NewPassword string `json:"new_password" binding:"required,min=6"`
+}
+
+// @Summary Reset Password
+// @Description Reset password using recovery code
+// @Tags Users
+// @Accept json
+// @Produce json
+// @Param request body UpdatePasswordWithCodeRequest true "Reset Data"
+// @Success 200 {object} map[string]string
+// @Router /users/update_password_with_code [post]
+func (h *UserHandler) UpdatePasswordWithCode(c *gin.Context) {
+	var req UpdatePasswordWithCodeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := h.userService.UpdatePasswordWithCode(c.Request.Context(), req.Email, req.Code, req.NewPassword); err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "Código inválido o expirado"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Contraseña actualizada"})
+}
