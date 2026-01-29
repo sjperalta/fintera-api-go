@@ -4,18 +4,18 @@ on:
   push:
     branches: [ main ]
     paths:
-      - 'go-api/**'
+      - '**'
   pull_request:
     branches: [ main ]
     paths:
-      - 'go-api/**'
+      - '**'
 
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./go-api
+        working-directory: .
 
     services:
       postgres:
@@ -40,7 +40,7 @@ jobs:
       uses: actions/setup-go@v5
       with:
         go-version: '1.23' # Using stable 1.23 as 1.25 seems futuristic/typo
-        cache-dependency-path: go-api/go.sum
+        cache-dependency-path: go.sum
 
     - name: Install dependencies
       run: go mod download
@@ -71,5 +71,4 @@ jobs:
       run: go build -v ./...
 
     - name: Docker Build
-      working-directory: ./go-api # Docker build context usually root of subproject
       run: docker build . -t fintera-api:latest
