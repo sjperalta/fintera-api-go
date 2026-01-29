@@ -3,19 +3,12 @@ name: Go API CI
 on:
   push:
     branches: [ main ]
-    paths:
-      - 'go-api/**'
   pull_request:
     branches: [ main ]
-    paths:
-      - 'go-api/**'
 
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./go-api
 
     services:
       postgres:
@@ -39,8 +32,9 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.23' # Using stable 1.23 as 1.25 seems futuristic/typo
-        cache-dependency-path: go-api/go.sum
+        go-version: '1.25'
+        cache-dependency-path: |
+          go.sum
 
     - name: Install dependencies
       run: go mod download
@@ -48,14 +42,17 @@ jobs:
     - name: Verify dependencies
       run: go mod verify
 
-    # Prepare database for tests if needed (e.g. migrate)
-    # Assuming tests handle their own DB or use testcontainers, but environment is provided.
-    # If migrations are needed:
+    - name: Wait for Postgres
+      run: |
+        until pg_isready -h localhost -p 5432; do
+          sleep 1
+        done
+
     - name: Install golang-migrate
       run: |
         curl -L https://github.com/golang-migrate/migrate/releases/download/v4.17.0/migrate.linux-amd64.tar.gz | tar xvz
         sudo mv migrate /usr/local/bin/
-        
+
     - name: Run Migrations
       env:
         DATABASE_URL: postgres://postgres:postgres@localhost:5432/fintera_test?sslmode=disable
@@ -70,6 +67,5 @@ jobs:
     - name: Build
       run: go build -v ./...
 
-    - name: Docker Build
-      working-directory: ./go-api # Docker build context usually root of subproject
+    - name: Docker Build Image
       run: docker build . -t fintera-api:latest

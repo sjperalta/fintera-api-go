@@ -1,8 +1,12 @@
-# Load .env file
-ifneq (,$(wildcard ./.env))
-    include .env
-    export
-endif
+# Load .env file if it exists, but don't override existing environment variables
+# Using -include ignores the file if it doesn't exist
+-include .env
+
+# Ensure DATABASE_URL is exported and respects environment overrides
+# If DATABASE_URL was in .env, 'include' set it. If it was already in env, 
+# 'include' might have overridden it depending on 'make' version.
+# To be safe, we can use the following pattern:
+export DATABASE_URL ?= $(DATABASE_URL)
 
 .PHONY: build run dev test clean migrate
 
