@@ -67,5 +67,5 @@ jobs:
     - name: Build
       run: go build -v ./...
 
-    - name: Docker Build Image
-      run: docker build . -t fintera-api:latest
+    # - name: Docker Build Image
+    #   run: docker build . -t fintera-api:latest
