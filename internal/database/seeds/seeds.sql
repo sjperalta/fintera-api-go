@@ -149,6 +149,7 @@ BEGIN
     END LOOP;
     
     -- Calculate final balance: -amount + reserve + down_payment + (3 monthly payments) (debt is negative)
+    -- Logic matches ContractService: Balance starts at -Amount and increases with payments
     v_balance := -v_amount + v_reserve + v_down + (v_monthly * 3);
     
     -- Update contract balance
@@ -238,6 +239,7 @@ BEGIN
     SELECT id INTO v_lot_id FROM lots WHERE name = 'Lote 2' LIMIT 1;
     SELECT id INTO v_user_id FROM users WHERE email = 'antonio.perez@gmail.com' LIMIT 1;
     
+    -- Initial balance is negative total amount (debt)
     INSERT INTO contracts (lot_id, applicant_user_id, payment_term, financing_type, reserve_amount, down_payment,
                           status, currency, amount, balance, created_at, updated_at)
     VALUES (v_lot_id, v_user_id, 18, 'direct', 50000.00, 100000.00,
