@@ -420,7 +420,7 @@ func (s *ReportService) GenerateContractPDF(ctx context.Context, contractID uint
 	// Helper for date formatting
 	formatDate := func(t time.Time) string {
 		months := []string{"", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"}
-		return fmt.Sprintf("%d de %s del %Y", t.Day(), months[t.Month()], t.Year())
+		return fmt.Sprintf("%d de %s del %d", t.Day(), months[t.Month()], t.Year())
 	}
 
 	// Helper for basic number to words (simplified for this context)

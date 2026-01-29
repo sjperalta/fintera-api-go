@@ -15,7 +15,7 @@
 ####################################
 # Go workspace / cache
 ####################################
-/pkg/
+# /pkg/  <-- Removed to allow pkg/logger etc.
 /vendor/
 go.work
 go.work.sum
@@ -91,7 +91,7 @@ coverage.out
 Thumbs.db
 
 # Storage (optional - you may want to keep this)
-storage/
+/storage/
 
 # Logs
 *.log
