@@ -128,8 +128,8 @@ func (s *PaymentService) Approve(ctx context.Context, id uint, amount, interestA
 					// Partially paid
 					target.Amount -= extraAmount
 					extraAmount = 0
+					s.repo.Update(ctx, target)
 				}
-				s.repo.Update(ctx, target)
 			}
 		}
 	}

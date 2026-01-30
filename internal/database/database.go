@@ -42,8 +42,8 @@ func Connect(databaseURL string) (*gorm.DB, error) {
 	}
 
 	// Configure connection pool
-	sqlDB.SetMaxIdleConns(10)
-	sqlDB.SetMaxOpenConns(100)
+	sqlDB.SetMaxIdleConns(5)
+	sqlDB.SetMaxOpenConns(50)
 	sqlDB.SetConnMaxLifetime(time.Hour)
 
 	// Verify connection
