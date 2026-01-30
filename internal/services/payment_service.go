@@ -62,7 +62,7 @@ func (s *PaymentService) List(ctx context.Context, query *repository.ListQuery) 
 	return s.repo.List(ctx, query)
 }
 
-func (s *PaymentService) Approve(ctx context.Context, id uint, paidAmount float64, actorID uint, ip, userAgent string) (*models.Payment, error) {
+func (s *PaymentService) Approve(ctx context.Context, id uint, amount, interestAmount, paidAmount float64, actorID uint, ip, userAgent string) (*models.Payment, error) {
 	payment, err := s.repo.FindByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -72,9 +72,13 @@ func (s *PaymentService) Approve(ctx context.Context, id uint, paidAmount float6
 		return nil, ErrInvalidState
 	}
 
-	// Default to full payment amount if not specified
+	// Default to full payment amount (Amount + InterestAmount) if not specified
 	if paidAmount <= 0 {
-		paidAmount = payment.Amount
+		total := payment.Amount
+		if payment.InterestAmount != nil {
+			total += *payment.InterestAmount
+		}
+		paidAmount = total
 	}
 
 	now := time.Now()
@@ -85,6 +89,49 @@ func (s *PaymentService) Approve(ctx context.Context, id uint, paidAmount float6
 
 	if err := s.repo.Update(ctx, payment); err != nil {
 		return nil, err
+	}
+
+	// Calculate and handle excess amount
+	expectedTotal := payment.Amount
+	if payment.InterestAmount != nil {
+		expectedTotal += *payment.InterestAmount
+	}
+	extraAmount := paidAmount - expectedTotal
+
+	if extraAmount > 0 {
+		// Apply extra amount to remaining payments from last to first
+		pendingPayments, err := s.repo.FindByContract(ctx, payment.ContractID)
+		if err == nil {
+			// Find only pending/submitted ones excluding current
+			var targets []*models.Payment
+			for i := range pendingPayments {
+				p := &pendingPayments[i]
+				if p.ID != payment.ID && (p.Status == models.PaymentStatusPending || p.Status == models.PaymentStatusSubmitted) {
+					targets = append(targets, p)
+				}
+			}
+
+			// Iterate backwards (last payments first)
+			for i := len(targets) - 1; i >= 0 && extraAmount > 0; i-- {
+				target := targets[i]
+				targetAmount := target.Amount
+				if target.InterestAmount != nil {
+					targetAmount += *target.InterestAmount
+				}
+
+				if extraAmount >= targetAmount {
+					// Fully paid by extra amount - DELETE the schedule record
+					if err := s.repo.Delete(ctx, target.ID); err == nil {
+						extraAmount -= targetAmount
+					}
+				} else {
+					// Partially paid
+					target.Amount -= extraAmount
+					extraAmount = 0
+				}
+				s.repo.Update(ctx, target)
+			}
+		}
 	}
 
 	desc := "Pago Recibido"
@@ -125,10 +172,13 @@ func (s *PaymentService) Approve(ctx context.Context, id uint, paidAmount float6
 	// Notify user
 	s.worker.EnqueueAsync(func(ctx context.Context) error {
 		contract, _ := s.contractRepo.FindByIDWithDetails(ctx, payment.ContractID)
-		return s.notificationSvc.NotifyUser(ctx, contract.ApplicantUserID,
-			"Pago aprobado",
-			"Tu pago ha sido aprobado",
-			models.NotificationTypePaymentApproved)
+		if contract != nil {
+			return s.notificationSvc.NotifyUser(ctx, contract.ApplicantUserID,
+				"Pago aprobado",
+				"Tu pago ha sido aprobado",
+				models.NotificationTypePaymentApproved)
+		}
+		return nil
 	})
 
 	// Audit log

@@ -167,6 +167,9 @@ func (h *UserHandler) Update(c *gin.Context) {
 	if v, ok := req["address"].(string); ok {
 		user.Address = &v
 	}
+	if v, ok := req["locale"].(string); ok {
+		user.Locale = v
+	}
 
 	if err := h.userService.Update(c.Request.Context(), user); err != nil {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
