@@ -3,6 +3,7 @@ package middleware
 import (
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -137,6 +138,39 @@ func RequireRole(allowedRoles ...string) gin.HandlerFunc {
 		}
 		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
 			"error": "No tienes acceso a esta sección",
+		})
+	}
+}
+
+// RequireAdminSellerOrOwner returns a middleware that requires admin, seller or being the owner of the resource
+func RequireAdminSellerOrOwner() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		currentUserRole := GetUserRole(c)
+		currentUserID := GetUserID(c)
+
+		// Allow if Admin or Seller
+		if currentUserRole == "admin" || currentUserRole == "seller" {
+			c.Next()
+			return
+		}
+
+		// Allow if Owner (resource ID matches current user ID)
+		// We check for both "user_id" and "id" as param names
+		idParam := c.Param("user_id")
+		if idParam == "" {
+			idParam = c.Param("id")
+		}
+
+		if idParam != "" {
+			targetID, err := strconv.ParseUint(idParam, 10, 32)
+			if err == nil && uint(targetID) == currentUserID {
+				c.Next()
+				return
+			}
+		}
+
+		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+			"error": "No tienes acceso a esta información",
 		})
 	}
 }

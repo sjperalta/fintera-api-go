@@ -215,17 +215,23 @@ func setupRouter(h *handlers.Handlers, cfg *config.Config) *gin.Engine {
 
 			}
 
+			// User data access (Admin, Seller, or Owner)
+			userData := protected.Group("/users/:user_id")
+			userData.Use(middleware.RequireAdminSellerOrOwner())
+			{
+				userData.GET("", h.User.Show)
+				userData.GET("/contracts", h.User.Contracts)
+				userData.GET("/payments", h.User.Payments)
+				userData.GET("/payment_history", h.User.PaymentHistory)
+				userData.GET("/summary", h.User.Summary)
+			}
+
 			// Seller + Admin routes (viewing and managing sales)
 			sellerAdmin := protected.Group("")
 			sellerAdmin.Use(middleware.RequireRole("admin", "seller"))
 			{
-				// User viewing (seller can view users for sales purposes)
+				// User viewing (seller/admin can list all users)
 				sellerAdmin.GET("/users", h.User.Index)
-				sellerAdmin.GET("/users/:user_id", h.User.Show)
-				sellerAdmin.GET("/users/:user_id/contracts", h.User.Contracts)
-				sellerAdmin.GET("/users/:user_id/payments", h.User.Payments)
-				sellerAdmin.GET("/users/:user_id/payment_history", h.User.PaymentHistory)
-				sellerAdmin.GET("/users/:user_id/summary", h.User.Summary)
 
 				// Contract viewing (seller can view all contracts)
 				sellerAdmin.GET("/contracts", h.Contract.Index)

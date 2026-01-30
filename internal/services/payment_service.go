@@ -17,6 +17,13 @@ type RevenuePoint struct {
 	Amount float64 `json:"amount"`
 }
 
+type UserFinancingSummary struct {
+	Balance   float64 `json:"balance"`
+	TotalDue  float64 `json:"totalDue"`
+	TotalFees float64 `json:"totalFees"`
+	Currency  string  `json:"currency"`
+}
+
 type PaymentService struct {
 	repo            repository.PaymentRepository
 	contractRepo    repository.ContractRepository
@@ -397,4 +404,76 @@ func (s *PaymentService) GetMonthlyStatistics(ctx context.Context, month, year i
 
 func (s *PaymentService) GetStats(ctx context.Context) (*repository.PaymentStats, error) {
 	return s.repo.GetMonthlyStats(ctx)
+}
+
+func (s *PaymentService) GetUserFinancingSummary(ctx context.Context, userID uint) (*UserFinancingSummary, error) {
+	// 1. Get all contracts for user
+	contracts, err := s.contractRepo.FindByUser(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	summary := &UserFinancingSummary{
+		Currency: "HNL", // Default
+	}
+
+	for _, contract := range contracts {
+		// Calculate balance for each contract if not already updated (or just sum them)
+		if contract.Balance != nil {
+			summary.Balance += *contract.Balance
+		}
+
+		// Get overdue payments for this contract
+		payments, err := s.repo.FindByContract(ctx, contract.ID)
+		if err == nil {
+			now := time.Now()
+			for _, p := range payments {
+				// Consider pending payments that are past due date
+				if p.Status == models.PaymentStatusPending && p.DueDate.Before(now) {
+					summary.TotalDue += p.Amount
+					if p.InterestAmount != nil {
+						summary.TotalDue += *p.InterestAmount
+						summary.TotalFees += *p.InterestAmount
+					}
+				}
+			}
+		}
+	}
+
+	return summary, nil
+}
+
+func (s *PaymentService) GetUserPayments(ctx context.Context, userID uint) ([]models.Payment, error) {
+	// 1. Get all contracts for user
+	contracts, err := s.contractRepo.FindByUser(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	allPayments := make([]models.Payment, 0)
+
+	// 2. Get payments for each contract
+	for _, contract := range contracts {
+		payments, err := s.repo.FindByContract(ctx, contract.ID)
+		if err != nil {
+			return nil, err
+		}
+
+		// Append payments, enriching with contract data if needed (though Payment struct usually has ContractID,
+		// if we need full Contract preload, repo might handle it.
+		// For now, let's just collect them. The frontend uses `contract` nested object if available,
+		// but `FindByContract` might not preload it.
+		// Let's manually double check if FindByContract preloads.
+		// Assuming standard GORM usage, usually it doesn't unless specified.
+		// But let's attach the contract object manually to avoid N+1 queries later or frontend issues if expectation is there.
+
+		for i := range payments {
+			payments[i].Contract = contract
+			// Also avoid cyclic reference json issues if any (unlikely with struct)
+		}
+
+		allPayments = append(allPayments, payments...)
+	}
+
+	return allPayments, nil
 }
