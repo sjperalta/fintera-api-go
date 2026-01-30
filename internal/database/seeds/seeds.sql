@@ -190,6 +190,36 @@ BEGIN
     VALUES
         (v_contract_id, v_reserve, 'Pago de Reserva', 'reservation', v_approved_date, v_approved_date, v_approved_date),
         (v_contract_id, v_down, 'Prima/Enganche', 'down_payment', v_approved_date, v_approved_date, v_approved_date);
+
+    -- Payment 1: Reserve (PAID)
+    INSERT INTO payments (contract_id, amount, paid_amount, due_date, payment_date, status, payment_type, description, approved_at, created_at, updated_at)
+    VALUES (
+        v_contract_id,
+        v_reserve,
+        v_reserve,
+        v_approved_date,
+        v_approved_date,
+        'paid',
+        'reservation',
+        'Pago de Reserva',
+        v_approved_date,
+        NOW(), NOW()
+    );
+    
+    -- Payment 2: Down Payment (PAID)
+    INSERT INTO payments (contract_id, amount, paid_amount, due_date, payment_date, status, payment_type, description, approved_at, created_at, updated_at)
+    VALUES (
+        v_contract_id,
+        v_down,
+        v_down,
+        v_approved_date + INTERVAL '7 days',
+        v_approved_date + INTERVAL '7 days',
+        'paid',
+        'down_payment',
+        'Prima/Enganche',
+        v_approved_date + INTERVAL '7 days',
+        NOW(), NOW()
+    );
     
     v_monthly := FLOOR((v_amount - v_reserve - v_down) / 12.0);
     

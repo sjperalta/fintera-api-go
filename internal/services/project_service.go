@@ -2,7 +2,9 @@ package services
 
 import (
 	"context"
+	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/sjperalta/fintera-api/internal/models"
 	"github.com/sjperalta/fintera-api/internal/repository"
 )
@@ -24,6 +26,27 @@ func (s *ProjectService) List(ctx context.Context, query *repository.ListQuery) 
 }
 
 func (s *ProjectService) Create(ctx context.Context, project *models.Project) error {
+	// Auto-generate GUID if not provided
+	if project.GUID == "" {
+		project.GUID = uuid.New().String()
+	}
+
+	// Auto-generate lots if lot count is specified
+	if project.LotCount > 0 {
+		project.Lots = make([]models.Lot, 0, project.LotCount)
+		for i := 1; i <= project.LotCount; i++ {
+			lot := models.Lot{
+				ProjectID:       project.ID, // This will be handled by GORM on create
+				Name:            "Lote " + fmt.Sprintf("%03d", i),
+				Status:          models.LotStatusAvailable,
+				Length:          20.0,
+				Width:           10.0,
+				Price:           project.PricePerSquareUnit * 200.0, // Assuming 20x10=200 area
+				MeasurementUnit: &project.MeasurementUnit,
+			}
+			project.Lots = append(project.Lots, lot)
+		}
+	}
 	return s.repo.Create(ctx, project)
 }
 

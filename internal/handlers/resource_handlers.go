@@ -1,7 +1,10 @@
 package handlers
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 
@@ -82,9 +85,27 @@ func (h *ProjectHandler) Show(c *gin.Context) {
 // @Router /projects [post]
 func (h *ProjectHandler) Create(c *gin.Context) {
 	var project models.Project
-	if err := c.ShouldBindJSON(&project); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
+
+	var bodyBytes []byte
+	if c.Request.Body != nil {
+		bodyBytes, _ = io.ReadAll(c.Request.Body)
+	}
+	// Restore body for future binding
+	c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+
+	// 1. Try Nested Structure { "project": { ... } }
+	var nestedReq struct {
+		Project models.Project `json:"project"`
+	}
+	// Check if "project" key exists in valid json and binds correctly
+	if err := json.Unmarshal(bodyBytes, &nestedReq); err == nil && nestedReq.Project.Name != "" {
+		project = nestedReq.Project
+	} else {
+		// 2. Try Flat Structure { ... }
+		if err := json.Unmarshal(bodyBytes, &project); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON format: " + err.Error()})
+			return
+		}
 	}
 
 	if err := h.projectService.Create(c.Request.Context(), &project); err != nil {

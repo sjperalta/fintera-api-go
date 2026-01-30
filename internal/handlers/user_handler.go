@@ -12,11 +12,15 @@ import (
 )
 
 type UserHandler struct {
-	userService *services.UserService
+	userService    *services.UserService
+	paymentService *services.PaymentService
 }
 
-func NewUserHandler(userService *services.UserService) *UserHandler {
-	return &UserHandler{userService: userService}
+func NewUserHandler(userService *services.UserService, paymentService *services.PaymentService) *UserHandler {
+	return &UserHandler{
+		userService:    userService,
+		paymentService: paymentService,
+	}
 }
 
 // @Summary List Users
@@ -167,6 +171,9 @@ func (h *UserHandler) Update(c *gin.Context) {
 	if v, ok := req["address"].(string); ok {
 		user.Address = &v
 	}
+	if v, ok := req["locale"].(string); ok {
+		user.Locale = v
+	}
 
 	if err := h.userService.Update(c.Request.Context(), user); err != nil {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
@@ -214,7 +221,7 @@ func (h *UserHandler) ToggleStatus(c *gin.Context) {
 }
 
 type ChangePasswordRequest struct {
-	CurrentPassword string `json:"current_password" binding:"required"`
+	CurrentPassword string `json:"current_password"`
 	NewPassword     string `json:"new_password" binding:"required,min=6"`
 }
 
@@ -236,9 +243,26 @@ func (h *UserHandler) ChangePassword(c *gin.Context) {
 		return
 	}
 
-	if err := h.userService.ChangePassword(c.Request.Context(), uint(id), req.CurrentPassword, req.NewPassword); err != nil {
-		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
-		return
+	// Get current user ID and Role from context (assuming middleware sets these)
+	currentUserID := middleware.GetUserID(c)
+	currentUserRole := middleware.GetUserRole(c)
+
+	// If admin is changing another user's password, force change without old password
+	if currentUserRole == "admin" && uint(id) != currentUserID {
+		if err := h.userService.ForceChangePassword(c.Request.Context(), uint(id), req.NewPassword); err != nil {
+			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+			return
+		}
+	} else {
+		// Standard password change requires current password
+		if req.CurrentPassword == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Current password is required"})
+			return
+		}
+		if err := h.userService.ChangePassword(c.Request.Context(), uint(id), req.CurrentPassword, req.NewPassword); err != nil {
+			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+			return
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Contraseña actualizada exitosamente"})
@@ -282,8 +306,19 @@ func (h *UserHandler) Contracts(c *gin.Context) {
 // @Security BearerAuth
 // @Router /users/{user_id}/payments [get]
 func (h *UserHandler) Payments(c *gin.Context) {
-	// TODO: Implement
-	c.JSON(http.StatusOK, gin.H{"payments": []interface{}{}})
+	userID, err := strconv.ParseUint(c.Param("user_id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID de usuario inválido"})
+		return
+	}
+
+	payments, err := h.paymentService.GetUserPayments(c.Request.Context(), uint(userID))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al obtener pagos"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"payments": payments})
 }
 
 // @Summary Get Payment History
@@ -310,8 +345,19 @@ func (h *UserHandler) PaymentHistory(c *gin.Context) {
 // @Security BearerAuth
 // @Router /users/{user_id}/summary [get]
 func (h *UserHandler) Summary(c *gin.Context) {
-	// TODO: Implement
-	c.JSON(http.StatusOK, gin.H{"summary": gin.H{}})
+	userID, err := strconv.ParseUint(c.Param("user_id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID de usuario inválido"})
+		return
+	}
+
+	summary, err := h.paymentService.GetUserFinancingSummary(c.Request.Context(), uint(userID))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al obtener resumen"})
+		return
+	}
+
+	c.JSON(http.StatusOK, summary)
 }
 
 // @Summary Restore User

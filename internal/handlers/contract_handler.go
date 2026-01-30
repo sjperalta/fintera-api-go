@@ -339,7 +339,7 @@ func (h *ContractHandler) Reopen(c *gin.Context) {
 }
 
 type CapitalRepaymentRequest struct {
-	Amount float64 `json:"amount" binding:"required,gt=0"`
+	Amount float64 `json:"capital_repayment_amount" binding:"required,gt=0"`
 }
 
 // @Summary Capital Repayment

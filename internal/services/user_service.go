@@ -88,6 +88,19 @@ func (s *UserService) ChangePassword(ctx context.Context, userID uint, currentPa
 	return s.repo.Update(ctx, user)
 }
 
+func (s *UserService) ForceChangePassword(ctx context.Context, userID uint, newPassword string) error {
+	user, err := s.repo.FindByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	hashedPassword, err := HashPassword(newPassword)
+	if err != nil {
+		return err
+	}
+	user.EncryptedPassword = hashedPassword
+	return s.repo.Update(ctx, user)
+}
+
 func (s *UserService) UpdateLocale(ctx context.Context, userID uint, locale string) error {
 	user, err := s.repo.FindByID(ctx, userID)
 	if err != nil {

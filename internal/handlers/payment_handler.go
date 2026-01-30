@@ -125,7 +125,14 @@ func (h *PaymentHandler) Show(c *gin.Context) {
 }
 
 type ApprovePaymentRequest struct {
-	PaidAmount float64 `json:"paid_amount"`
+	Amount         float64 `json:"amount"`
+	InterestAmount float64 `json:"interest_amount"`
+	PaidAmount     float64 `json:"paid_amount"`
+	Payment        *struct {
+		Amount         float64 `json:"amount"`
+		InterestAmount float64 `json:"interest_amount"`
+		PaidAmount     float64 `json:"paid_amount"`
+	} `json:"payment"`
 }
 
 // @Summary Approve Payment
@@ -141,9 +148,28 @@ type ApprovePaymentRequest struct {
 func (h *PaymentHandler) Approve(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("payment_id"), 10, 32)
 	var req ApprovePaymentRequest
-	c.ShouldBindJSON(&req)
+	if err := c.ShouldBindJSON(&req); err != nil {
+		// Ignore error if it's just empty body
+	}
 
-	payment, err := h.paymentService.Approve(c.Request.Context(), uint(id), req.PaidAmount,
+	amount := req.Amount
+	interestAmount := req.InterestAmount
+	paidAmount := req.PaidAmount
+
+	// Fallback to nested payment if provided
+	if req.Payment != nil {
+		if amount == 0 {
+			amount = req.Payment.Amount
+		}
+		if interestAmount == 0 {
+			interestAmount = req.Payment.InterestAmount
+		}
+		if paidAmount == 0 {
+			paidAmount = req.Payment.PaidAmount
+		}
+	}
+
+	payment, err := h.paymentService.Approve(c.Request.Context(), uint(id), amount, interestAmount, paidAmount,
 		h.getUserID(c),
 		c.ClientIP(),
 		c.Request.UserAgent(),

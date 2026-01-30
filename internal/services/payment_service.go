@@ -17,6 +17,13 @@ type RevenuePoint struct {
 	Amount float64 `json:"amount"`
 }
 
+type UserFinancingSummary struct {
+	Balance   float64 `json:"balance"`
+	TotalDue  float64 `json:"totalDue"`
+	TotalFees float64 `json:"totalFees"`
+	Currency  string  `json:"currency"`
+}
+
 type PaymentService struct {
 	repo            repository.PaymentRepository
 	contractRepo    repository.ContractRepository
@@ -62,7 +69,7 @@ func (s *PaymentService) List(ctx context.Context, query *repository.ListQuery) 
 	return s.repo.List(ctx, query)
 }
 
-func (s *PaymentService) Approve(ctx context.Context, id uint, paidAmount float64, actorID uint, ip, userAgent string) (*models.Payment, error) {
+func (s *PaymentService) Approve(ctx context.Context, id uint, amount, interestAmount, paidAmount float64, actorID uint, ip, userAgent string) (*models.Payment, error) {
 	payment, err := s.repo.FindByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -72,9 +79,13 @@ func (s *PaymentService) Approve(ctx context.Context, id uint, paidAmount float6
 		return nil, ErrInvalidState
 	}
 
-	// Default to full payment amount if not specified
+	// Default to full payment amount (Amount + InterestAmount) if not specified
 	if paidAmount <= 0 {
-		paidAmount = payment.Amount
+		total := payment.Amount
+		if payment.InterestAmount != nil {
+			total += *payment.InterestAmount
+		}
+		paidAmount = total
 	}
 
 	now := time.Now()
@@ -85,6 +96,49 @@ func (s *PaymentService) Approve(ctx context.Context, id uint, paidAmount float6
 
 	if err := s.repo.Update(ctx, payment); err != nil {
 		return nil, err
+	}
+
+	// Calculate and handle excess amount
+	expectedTotal := payment.Amount
+	if payment.InterestAmount != nil {
+		expectedTotal += *payment.InterestAmount
+	}
+	extraAmount := paidAmount - expectedTotal
+
+	if extraAmount > 0 {
+		// Apply extra amount to remaining payments from last to first
+		pendingPayments, err := s.repo.FindByContract(ctx, payment.ContractID)
+		if err == nil {
+			// Find only pending/submitted ones excluding current
+			var targets []*models.Payment
+			for i := range pendingPayments {
+				p := &pendingPayments[i]
+				if p.ID != payment.ID && (p.Status == models.PaymentStatusPending || p.Status == models.PaymentStatusSubmitted) {
+					targets = append(targets, p)
+				}
+			}
+
+			// Iterate backwards (last payments first)
+			for i := len(targets) - 1; i >= 0 && extraAmount > 0; i-- {
+				target := targets[i]
+				targetAmount := target.Amount
+				if target.InterestAmount != nil {
+					targetAmount += *target.InterestAmount
+				}
+
+				if extraAmount >= targetAmount {
+					// Fully paid by extra amount - DELETE the schedule record
+					if err := s.repo.Delete(ctx, target.ID); err == nil {
+						extraAmount -= targetAmount
+					}
+				} else {
+					// Partially paid
+					target.Amount -= extraAmount
+					extraAmount = 0
+					s.repo.Update(ctx, target)
+				}
+			}
+		}
 	}
 
 	desc := "Pago Recibido"
@@ -125,10 +179,13 @@ func (s *PaymentService) Approve(ctx context.Context, id uint, paidAmount float6
 	// Notify user
 	s.worker.EnqueueAsync(func(ctx context.Context) error {
 		contract, _ := s.contractRepo.FindByIDWithDetails(ctx, payment.ContractID)
-		return s.notificationSvc.NotifyUser(ctx, contract.ApplicantUserID,
-			"Pago aprobado",
-			"Tu pago ha sido aprobado",
-			models.NotificationTypePaymentApproved)
+		if contract != nil {
+			return s.notificationSvc.NotifyUser(ctx, contract.ApplicantUserID,
+				"Pago aprobado",
+				"Tu pago ha sido aprobado",
+				models.NotificationTypePaymentApproved)
+		}
+		return nil
 	})
 
 	// Audit log
@@ -347,4 +404,76 @@ func (s *PaymentService) GetMonthlyStatistics(ctx context.Context, month, year i
 
 func (s *PaymentService) GetStats(ctx context.Context) (*repository.PaymentStats, error) {
 	return s.repo.GetMonthlyStats(ctx)
+}
+
+func (s *PaymentService) GetUserFinancingSummary(ctx context.Context, userID uint) (*UserFinancingSummary, error) {
+	// 1. Get all contracts for user
+	contracts, err := s.contractRepo.FindByUser(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	summary := &UserFinancingSummary{
+		Currency: "HNL", // Default
+	}
+
+	for _, contract := range contracts {
+		// Calculate balance for each contract if not already updated (or just sum them)
+		if contract.Balance != nil {
+			summary.Balance += *contract.Balance
+		}
+
+		// Get overdue payments for this contract
+		payments, err := s.repo.FindByContract(ctx, contract.ID)
+		if err == nil {
+			now := time.Now()
+			for _, p := range payments {
+				// Consider pending payments that are past due date
+				if p.Status == models.PaymentStatusPending && p.DueDate.Before(now) {
+					summary.TotalDue += p.Amount
+					if p.InterestAmount != nil {
+						summary.TotalDue += *p.InterestAmount
+						summary.TotalFees += *p.InterestAmount
+					}
+				}
+			}
+		}
+	}
+
+	return summary, nil
+}
+
+func (s *PaymentService) GetUserPayments(ctx context.Context, userID uint) ([]models.Payment, error) {
+	// 1. Get all contracts for user
+	contracts, err := s.contractRepo.FindByUser(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	allPayments := make([]models.Payment, 0)
+
+	// 2. Get payments for each contract
+	for _, contract := range contracts {
+		payments, err := s.repo.FindByContract(ctx, contract.ID)
+		if err != nil {
+			return nil, err
+		}
+
+		// Append payments, enriching with contract data if needed (though Payment struct usually has ContractID,
+		// if we need full Contract preload, repo might handle it.
+		// For now, let's just collect them. The frontend uses `contract` nested object if available,
+		// but `FindByContract` might not preload it.
+		// Let's manually double check if FindByContract preloads.
+		// Assuming standard GORM usage, usually it doesn't unless specified.
+		// But let's attach the contract object manually to avoid N+1 queries later or frontend issues if expectation is there.
+
+		for i := range payments {
+			payments[i].Contract = contract
+			// Also avoid cyclic reference json issues if any (unlikely with struct)
+		}
+
+		allPayments = append(allPayments, payments...)
+	}
+
+	return allPayments, nil
 }
