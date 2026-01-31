@@ -129,10 +129,28 @@ func (h *ProjectHandler) Create(c *gin.Context) {
 func (h *ProjectHandler) Update(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("project_id"), 10, 32)
 	var project models.Project
-	if err := c.ShouldBindJSON(&project); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
+
+	var bodyBytes []byte
+	if c.Request.Body != nil {
+		bodyBytes, _ = io.ReadAll(c.Request.Body)
 	}
+	// Restore body for future binding
+	c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+
+	// 1. Try Nested Structure { "project": { ... } }
+	var nestedReq struct {
+		Project models.Project `json:"project"`
+	}
+	if err := json.Unmarshal(bodyBytes, &nestedReq); err == nil && nestedReq.Project.Name != "" {
+		project = nestedReq.Project
+	} else {
+		// 2. Try Flat Structure { ... }
+		if err := json.Unmarshal(bodyBytes, &project); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON format: " + err.Error()})
+			return
+		}
+	}
+
 	project.ID = uint(id)
 
 	if err := h.projectService.Update(c.Request.Context(), &project); err != nil {
@@ -291,10 +309,28 @@ func (h *LotHandler) Show(c *gin.Context) {
 func (h *LotHandler) Create(c *gin.Context) {
 	projectID, _ := strconv.ParseUint(c.Param("project_id"), 10, 32)
 	var lot models.Lot
-	if err := c.ShouldBindJSON(&lot); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
+
+	var bodyBytes []byte
+	if c.Request.Body != nil {
+		bodyBytes, _ = io.ReadAll(c.Request.Body)
 	}
+	// Restore body for future binding
+	c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+
+	// 1. Try Nested Structure { "lot": { ... } }
+	var nestedReq struct {
+		Lot models.Lot `json:"lot"`
+	}
+	if err := json.Unmarshal(bodyBytes, &nestedReq); err == nil && nestedReq.Lot.Name != "" {
+		lot = nestedReq.Lot
+	} else {
+		// 2. Try Flat Structure { ... }
+		if err := json.Unmarshal(bodyBytes, &lot); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON format: " + err.Error()})
+			return
+		}
+	}
+
 	lot.ProjectID = uint(projectID)
 
 	if err := h.lotService.Create(c.Request.Context(), &lot); err != nil {
@@ -318,10 +354,28 @@ func (h *LotHandler) Create(c *gin.Context) {
 func (h *LotHandler) Update(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("lot_id"), 10, 32)
 	var lot models.Lot
-	if err := c.ShouldBindJSON(&lot); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
+
+	var bodyBytes []byte
+	if c.Request.Body != nil {
+		bodyBytes, _ = io.ReadAll(c.Request.Body)
 	}
+	// Restore body for future binding
+	c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+
+	// 1. Try Nested Structure { "lot": { ... } }
+	var nestedReq struct {
+		Lot models.Lot `json:"lot"`
+	}
+	if err := json.Unmarshal(bodyBytes, &nestedReq); err == nil && nestedReq.Lot.Name != "" {
+		lot = nestedReq.Lot
+	} else {
+		// 2. Try Flat Structure { ... }
+		if err := json.Unmarshal(bodyBytes, &lot); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON format: " + err.Error()})
+			return
+		}
+	}
+
 	lot.ID = uint(id)
 
 	if err := h.lotService.Update(c.Request.Context(), &lot); err != nil {

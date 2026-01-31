@@ -361,12 +361,30 @@ func (s *ContractService) CapitalRepayment(ctx context.Context, id uint, amount 
 		return fmt.Errorf("can only apply capital repayment to approved contracts")
 	}
 
-	// 2. Create prepayment ledger entry (credit)
+	// 2. Create Payment record for the repayment (to show in schedule/history)
 	now := time.Now()
+	repaymentDescription := fmt.Sprintf("Abono a Capital: L%.2f", amount)
+	repaymentPayment := &models.Payment{
+		ContractID:  contract.ID,
+		Amount:      amount,
+		PaidAmount:  &amount,
+		PaymentDate: &now,
+		Status:      models.PaymentStatusPaid,
+		PaymentType: models.PaymentTypeCapitalRepayment,
+		Description: &repaymentDescription,
+		ApprovedAt:  &now,
+		DueDate:     now, // Using now as due date for recording purposes
+	}
+	if err := s.paymentRepo.Create(ctx, repaymentPayment); err != nil {
+		return fmt.Errorf("failed to create repayment payment record: %w", err)
+	}
+
+	// 3. Create prepayment ledger entry (credit) and link to payment
 	prepaymentEntry := &models.ContractLedgerEntry{
 		ContractID:  contract.ID,
+		PaymentID:   &repaymentPayment.ID,
 		Amount:      amount, // Positive (payment/credit)
-		Description: fmt.Sprintf("Abono a Capital: L%.2f", amount),
+		Description: repaymentDescription,
 		EntryType:   models.EntryTypePrepayment,
 		EntryDate:   now,
 	}
@@ -374,48 +392,46 @@ func (s *ContractService) CapitalRepayment(ctx context.Context, id uint, amount 
 		return fmt.Errorf("failed to create ledger entry: %w", err)
 	}
 
-	// 3. Process pending installment payments
+	// 4. Process pending installment payments (Strategy: Reduce Term - Delete from end)
 	remainingAmount := amount
 	payments := contract.Payments
 
+	// Filter for actionable installments
+	var targets []*models.Payment
 	for i := range payments {
 		p := &payments[i]
-		// Only apply to pending/submitted installments
-		if p.PaymentType != models.PaymentTypeInstallment || (p.Status != models.PaymentStatusPending && p.Status != models.PaymentStatusSubmitted) {
-			continue
+		if p.PaymentType == models.PaymentTypeInstallment && (p.Status == models.PaymentStatusPending || p.Status == models.PaymentStatusSubmitted) {
+			targets = append(targets, p)
 		}
+	}
 
-		if remainingAmount <= 0 {
-			break
-		}
+	// Iterate backwards (last payments first)
+	for i := len(targets) - 1; i >= 0 && remainingAmount > 0; i-- {
+		target := targets[i]
 
-		if remainingAmount >= p.Amount {
-			// Fully cover this payment
-			fullAmount := p.Amount
-			p.Status = models.PaymentStatusPaid
-			p.PaidAmount = &fullAmount
-			p.PaymentDate = &now
-			p.ApprovedAt = &now
-			desc := "Cubierto por abono a capital"
-			if p.Description != nil {
-				desc = fmt.Sprintf("%s (%s)", *p.Description, desc)
+		// Apply capital payment ONLY to Principal (Amount)
+		// We do not pay off future interest with capital payments; we simply delete the principal obligation.
+		targetAmount := target.Amount
+
+		if remainingAmount >= targetAmount {
+			// Fully covered - DELETE the payment to shorten term
+			if err := s.paymentRepo.Delete(ctx, target.ID); err != nil {
+				return fmt.Errorf("failed to delete payment #%d: %w", target.ID, err)
 			}
-			p.Description = &desc
-
-			remainingAmount -= p.Amount
+			remainingAmount -= targetAmount
 		} else {
-			// Partially cover this payment
-			p.Amount -= remainingAmount // Adjust the amount pending
+			// Partially covered - Reduce amount
+			target.Amount -= remainingAmount
 			desc := fmt.Sprintf("Ajustado por abono a capital de L%.2f", remainingAmount)
-			if p.Description != nil {
-				desc = fmt.Sprintf("%s (%s)", *p.Description, desc)
+			if target.Description != nil {
+				desc = fmt.Sprintf("%s (%s)", *target.Description, desc)
 			}
-			p.Description = &desc
-			remainingAmount = 0
-		}
+			target.Description = &desc
 
-		if err := s.paymentRepo.Update(ctx, p); err != nil {
-			return fmt.Errorf("failed to update payment #%d: %w", p.ID, err)
+			if err := s.paymentRepo.Update(ctx, target); err != nil {
+				return fmt.Errorf("failed to update payment #%d: %w", target.ID, err)
+			}
+			remainingAmount = 0
 		}
 	}
 
@@ -425,6 +441,14 @@ func (s *ContractService) CapitalRepayment(ctx context.Context, id uint, amount 
 		balance, err := s.ledgerRepo.CalculateBalance(ctx, contract.ID)
 		if err == nil {
 			contract.Balance = &balance
+
+			// Clear associations to prevent GORM from re-saving/resurrecting deleted payments
+			// The contract object still has the stale 'Payments' slice from the original fetch,
+			// which includes the payments we just deleted. Saving the contract with these
+			// associations would re-insert them.
+			contract.Payments = nil
+			contract.LedgerEntries = nil
+
 			s.repo.Update(ctx, contract)
 
 			// Auto-close if balance >= 0

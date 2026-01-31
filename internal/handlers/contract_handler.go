@@ -373,7 +373,17 @@ func (h *ContractHandler) CapitalRepayment(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Abono a capital aplicado exitosamente"})
+	// Fetch updated contract with details to return to frontend
+	contract, err := h.contractService.FindByIDWithDetails(c.Request.Context(), uint(contractID))
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"message": "Abono a capital aplicado exitosamente, pero hubo un error al recargar los detalles"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":  "Abono a capital aplicado exitosamente",
+		"contract": contract.ToResponse(),
+	})
 }
 
 // @Summary Get Contract Ledger

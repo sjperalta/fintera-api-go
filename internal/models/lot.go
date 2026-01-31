@@ -68,29 +68,34 @@ func (l *Lot) IsAvailable() bool {
 
 // LotResponse is the JSON response format for lots
 type LotResponse struct {
-	ID                 uint    `json:"id"`
-	ProjectID          uint    `json:"project_id"`
-	ProjectName        string  `json:"project_name"`
-	Name               string  `json:"name"`
-	Status             string  `json:"status"`
-	Length             float64 `json:"length"`
-	Width              float64 `json:"width"`
-	Area               float64 `json:"area"`
-	Price              float64 `json:"price"`
-	EffectivePrice     float64 `json:"effective_price"`
-	Address            *string `json:"address"`
-	MeasurementUnit    *string `json:"measurement_unit"`
-	RegistrationNumber *string `json:"registration_number"`
-	Note               *string `json:"note"`
-	North              *string `json:"north"`
-	South              *string `json:"south"`
-	East               *string `json:"east"`
-	West               *string `json:"west"`
+	ID                    uint    `json:"id"`
+	ProjectID             uint    `json:"project_id"`
+	ProjectName           string  `json:"project_name"`
+	Name                  string  `json:"name"`
+	Status                string  `json:"status"`
+	Length                float64 `json:"length"`
+	Width                 float64 `json:"width"`
+	Area                  float64 `json:"area"`
+	Price                 float64 `json:"price"`
+	EffectivePrice        float64 `json:"effective_price"`
+	Address               *string `json:"address"`
+	MeasurementUnit       *string `json:"measurement_unit"`
+	RegistrationNumber    *string `json:"registration_number"`
+	Note                  *string `json:"note"`
+	North                 *string `json:"north"`
+	South                 *string `json:"south"`
+	East                  *string `json:"east"`
+	West                  *string `json:"west"`
+	ReservedBy            string  `json:"reserved_by,omitempty"`
+	ReservedByUserID      uint    `json:"reserved_by_user_id,omitempty"`
+	ContractCreatedBy     string  `json:"contract_created_by,omitempty"`
+	ContractCreatedUserID uint    `json:"contract_created_user_id,omitempty"`
+	ContractID            uint    `json:"contract_id,omitempty"`
 }
 
 // ToResponse converts Lot to LotResponse
 func (l *Lot) ToResponse() LotResponse {
-	return LotResponse{
+	resp := LotResponse{
 		ID:                 l.ID,
 		ProjectID:          l.ProjectID,
 		ProjectName:        l.Project.Name,
@@ -110,4 +115,25 @@ func (l *Lot) ToResponse() LotResponse {
 		East:               l.East,
 		West:               l.West,
 	}
+
+	// Find active contract for reservation info
+	if l.Status == LotStatusReserved || l.Status == LotStatusFinanced || l.Status == LotStatusFullyPaid {
+		for _, c := range l.Contracts {
+			// Check for active/relevant contract statuses
+			if c.Status != "rejected" && c.Status != "cancelled" {
+				if c.ApplicantUser.ID != 0 {
+					resp.ReservedBy = c.ApplicantUser.FullName
+					resp.ReservedByUserID = c.ApplicantUser.ID
+				}
+				if c.Creator != nil {
+					resp.ContractCreatedBy = c.Creator.FullName
+					resp.ContractCreatedUserID = c.Creator.ID
+				}
+				resp.ContractID = c.ID
+				break // Assume the first non-rejected/cancelled contract is the relevant one
+			}
+		}
+	}
+
+	return resp
 }

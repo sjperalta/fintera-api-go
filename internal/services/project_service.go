@@ -96,9 +96,42 @@ func (s *LotService) Update(ctx context.Context, lot *models.Lot) error {
 	if lot.Status == "" {
 		lot.Status = existingLot.Status
 	}
-	// Preserve other fields if necessary, or rely on frontend to send them
-	// Ideally we should use a PATCH approach, but for now this fixes the critical FK error
 
+	// Preserve metadata fields if not provided (zero/nil)
+	if lot.Address == nil {
+		lot.Address = existingLot.Address
+	}
+	if lot.MeasurementUnit == nil {
+		lot.MeasurementUnit = existingLot.MeasurementUnit
+	}
+	if lot.RegistrationNumber == nil {
+		lot.RegistrationNumber = existingLot.RegistrationNumber
+	}
+	if lot.Note == nil {
+		lot.Note = existingLot.Note
+	}
+	if lot.North == nil {
+		lot.North = existingLot.North
+	}
+	if lot.South == nil {
+		lot.South = existingLot.South
+	}
+	if lot.East == nil {
+		lot.East = existingLot.East
+	}
+	if lot.West == nil {
+		lot.West = existingLot.West
+	}
+
+	// Carry over project association for ToResponse
+	lot.Project = existingLot.Project
+
+	// Recalculate base price if 0
+	if lot.Price == 0 && lot.Project.PricePerSquareUnit > 0 {
+		lot.Price = lot.Area() * lot.Project.PricePerSquareUnit
+	}
+
+	// Ideally we should use a PATCH approach, but for now this fixes the critical data loss
 	return s.repo.Update(ctx, lot)
 }
 

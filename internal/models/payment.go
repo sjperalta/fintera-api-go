@@ -42,11 +42,12 @@ const (
 
 // Payment type constants
 const (
-	PaymentTypeReservation = "reservation"
-	PaymentTypeDownPayment = "down_payment"
-	PaymentTypeInstallment = "installment"
-	PaymentTypeFull        = "full"
-	PaymentTypeAdvance     = "advance"
+	PaymentTypeReservation      = "reservation"
+	PaymentTypeDownPayment      = "down_payment"
+	PaymentTypeInstallment      = "installment"
+	PaymentTypeFull             = "full"
+	PaymentTypeAdvance          = "advance"
+	PaymentTypeCapitalRepayment = "capital_repayment"
 )
 
 // MaySubmit returns true if payment can transition to submitted
