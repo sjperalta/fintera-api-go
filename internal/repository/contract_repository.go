@@ -533,7 +533,13 @@ func (r *lotRepository) List(ctx context.Context, projectID uint, query *ListQue
 		db = db.Offset((query.Page - 1) * query.PerPage).Limit(query.PerPage)
 	}
 
-	err := db.Preload("Project").Find(&lots).Error
+	err := db.Preload("Project").
+		Preload("Contracts", func(db *gorm.DB) *gorm.DB {
+			return db.Order("created_at DESC")
+		}).
+		Preload("Contracts.ApplicantUser").
+		Preload("Contracts.Creator").
+		Find(&lots).Error
 	return lots, total, err
 }
 

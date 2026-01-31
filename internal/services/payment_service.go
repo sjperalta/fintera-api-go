@@ -105,6 +105,12 @@ func (s *PaymentService) Approve(ctx context.Context, id uint, amount, interestA
 	}
 	extraAmount := paidAmount - expectedTotal
 
+	// Calculate capital repayment part for ledger (before consuming extraAmount in loop)
+	capitalRepayment := 0.0
+	if extraAmount > 0 {
+		capitalRepayment = extraAmount
+	}
+
 	if extraAmount > 0 {
 		// Apply extra amount to remaining payments from last to first
 		pendingPayments, err := s.repo.FindByContract(ctx, payment.ContractID)
@@ -121,16 +127,17 @@ func (s *PaymentService) Approve(ctx context.Context, id uint, amount, interestA
 			// Iterate backwards (last payments first)
 			for i := len(targets) - 1; i >= 0 && extraAmount > 0; i-- {
 				target := targets[i]
+
+				// Apply capital payment ONLY to Principal (Amount)
+				// We do not pay off future interest with capital payments; we simply delete the principal obligation.
 				targetAmount := target.Amount
-				if target.InterestAmount != nil {
-					targetAmount += *target.InterestAmount
-				}
 
 				if extraAmount >= targetAmount {
 					// Fully paid by extra amount - DELETE the schedule record
-					if err := s.repo.Delete(ctx, target.ID); err == nil {
-						extraAmount -= targetAmount
+					if err := s.repo.Delete(ctx, target.ID); err != nil {
+						return nil, fmt.Errorf("failed to delete payment #%d: %w", target.ID, err)
 					}
+					extraAmount -= targetAmount
 				} else {
 					// Partially paid
 					target.Amount -= extraAmount
@@ -147,10 +154,12 @@ func (s *PaymentService) Approve(ctx context.Context, id uint, amount, interestA
 	}
 
 	// Create ledger entry for payment (credit)
+	// 1. Regular Payment (Installment)
+	regularAmount := paidAmount - capitalRepayment
 	ledgerEntry := &models.ContractLedgerEntry{
 		ContractID:  payment.ContractID,
 		PaymentID:   &payment.ID,
-		Amount:      paidAmount, // Positive for credit
+		Amount:      regularAmount, // Positive for credit
 		Description: desc,
 		EntryType:   models.EntryTypePayment,
 		EntryDate:   now,
@@ -158,6 +167,23 @@ func (s *PaymentService) Approve(ctx context.Context, id uint, amount, interestA
 
 	if err := s.ledgerRepo.Create(ctx, ledgerEntry); err != nil {
 		return nil, fmt.Errorf("failed to create ledger entry: %w", err)
+	}
+
+	// 2. Prepayment (Capital Repayment)
+	if capitalRepayment > 0 {
+		capitalDesc := desc + " (Abono a Capital)"
+		capitalEntry := &models.ContractLedgerEntry{
+			ContractID:  payment.ContractID,
+			PaymentID:   &payment.ID,
+			Amount:      capitalRepayment,
+			Description: capitalDesc,
+			EntryType:   models.EntryTypePrepayment,
+			EntryDate:   now,
+		}
+
+		if err := s.ledgerRepo.Create(ctx, capitalEntry); err != nil {
+			return nil, fmt.Errorf("failed to create capital ledger entry: %w", err)
+		}
 	}
 
 	// Update contract balance and Lot status
