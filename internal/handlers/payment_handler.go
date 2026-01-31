@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"strconv"
 
+	"strings"
+
 	"github.com/gin-gonic/gin"
 	"github.com/sjperalta/fintera-api/internal/repository"
 	"github.com/sjperalta/fintera-api/internal/services"
@@ -35,6 +37,17 @@ func (h *PaymentHandler) Index(c *gin.Context) {
 	query.Page, _ = strconv.Atoi(c.DefaultQuery("page", "1"))
 	query.PerPage, _ = strconv.Atoi(c.DefaultQuery("per_page", "20"))
 	query.Filters["status"] = c.Query("status")
+	query.Filters["start_date"] = c.Query("start_date")
+	query.Filters["end_date"] = c.Query("end_date")
+
+	// Parse sort parameter (format: field-direction)
+	if sort := c.Query("sort"); sort != "" {
+		parts := strings.Split(sort, "-")
+		query.SortBy = parts[0]
+		if len(parts) > 1 {
+			query.SortDir = parts[1]
+		}
+	}
 
 	payments, total, err := h.paymentService.List(c.Request.Context(), query)
 	if err != nil {
@@ -258,7 +271,27 @@ func (h *PaymentHandler) DownloadReceipt(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Comprobante no encontrado"})
 		return
 	}
-	c.File(h.storage.GetFullPath(*payment.DocumentPath))
+
+	// Authorization check
+	currentUserID := h.getUserID(c)
+	currentUserRole := ""
+	if role, exists := c.Get("userRole"); exists {
+		currentUserRole = role.(string)
+	}
+
+	// Allow if admin or seller
+	if currentUserRole == "admin" || currentUserRole == "seller" {
+		c.File(h.storage.GetFullPath(*payment.DocumentPath))
+		return
+	}
+
+	// Allow if applicant
+	if currentUserID == payment.Contract.ApplicantUserID {
+		c.File(h.storage.GetFullPath(*payment.DocumentPath))
+		return
+	}
+
+	c.JSON(http.StatusForbidden, gin.H{"error": "No tienes permiso para ver este comprobante"})
 }
 
 // @Summary Undo Payment

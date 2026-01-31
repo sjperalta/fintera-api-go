@@ -93,6 +93,7 @@ func (s *PaymentService) Approve(ctx context.Context, id uint, amount, interestA
 	payment.PaidAmount = &paidAmount
 	payment.PaymentDate = &now
 	payment.ApprovedAt = &now
+	payment.ApprovedByUserID = &actorID
 
 	if err := s.repo.Update(ctx, payment); err != nil {
 		return nil, err

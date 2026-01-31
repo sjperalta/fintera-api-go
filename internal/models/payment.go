@@ -2,28 +2,31 @@ package models
 
 import (
 	"fmt"
+	"strings"
 	"time"
 )
 
 // Payment represents a payment for a contract
 type Payment struct {
-	ID             uint       `gorm:"primaryKey" json:"id"`
-	ContractID     uint       `gorm:"not null;index" json:"contract_id"`
-	Amount         float64    `gorm:"type:decimal(10,2);not null" json:"amount"`
-	PaidAmount     *float64   `gorm:"type:decimal(15,2);default:0" json:"paid_amount"`
-	DueDate        time.Time  `gorm:"type:date;not null;index" json:"due_date"`
-	PaymentDate    *time.Time `gorm:"type:date" json:"payment_date"`
-	Status         string     `gorm:"default:pending;not null;index" json:"status"`
-	PaymentType    string     `gorm:"default:installment" json:"payment_type"`
-	Description    *string    `json:"description"`
-	InterestAmount *float64   `gorm:"type:decimal(10,2)" json:"interest_amount"`
-	ApprovedAt     *time.Time `gorm:"index" json:"approved_at"`
-	DocumentPath   *string    `json:"-"` // Receipt file path
-	CreatedAt      time.Time  `gorm:"index" json:"created_at"`
-	UpdatedAt      time.Time  `json:"updated_at"`
+	ID               uint       `gorm:"primaryKey" json:"id"`
+	ContractID       uint       `gorm:"not null;index" json:"contract_id"`
+	Amount           float64    `gorm:"type:decimal(10,2);not null" json:"amount"`
+	PaidAmount       *float64   `gorm:"type:decimal(15,2);default:0" json:"paid_amount"`
+	DueDate          time.Time  `gorm:"type:date;not null;index" json:"due_date"`
+	PaymentDate      *time.Time `gorm:"type:date" json:"payment_date"`
+	Status           string     `gorm:"default:pending;not null;index" json:"status"`
+	PaymentType      string     `gorm:"default:installment" json:"payment_type"`
+	Description      *string    `json:"description"`
+	InterestAmount   *float64   `gorm:"type:decimal(10,2)" json:"interest_amount"`
+	ApprovedAt       *time.Time `gorm:"index" json:"approved_at"`
+	ApprovedByUserID *uint      `gorm:"index" json:"approved_by_user_id"`
+	DocumentPath     *string    `json:"-"` // Receipt file path
+	CreatedAt        time.Time  `gorm:"index" json:"created_at"`
+	UpdatedAt        time.Time  `json:"updated_at"`
 
 	// Associations
-	Contract Contract `gorm:"foreignKey:ContractID" json:"contract,omitempty"`
+	Contract       Contract `gorm:"foreignKey:ContractID" json:"contract,omitempty"`
+	ApprovedByUser User     `gorm:"foreignKey:ApprovedByUserID" json:"approved_by_user,omitempty"`
 }
 
 // TableName specifies the table name for Payment
@@ -97,7 +100,9 @@ type PaymentResponse struct {
 	Description    *string    `json:"description"`
 	PaymentDate    *time.Time `json:"payment_date"`
 	ApprovedAt     *time.Time `json:"approved_at"`
+	Approver       string     `json:"approver,omitempty"`
 	HasReceipt     bool       `json:"has_receipt"`
+	IsPDF          bool       `json:"is_pdf"`
 
 	// Contract details
 	ContractStatus    string  `json:"contract_status,omitempty"`
@@ -125,6 +130,11 @@ func (p *Payment) ToResponse() PaymentResponse {
 		PaymentDate: p.PaymentDate,
 		ApprovedAt:  p.ApprovedAt,
 		HasReceipt:  p.DocumentPath != nil && *p.DocumentPath != "",
+		IsPDF:       p.DocumentPath != nil && strings.HasSuffix(strings.ToLower(*p.DocumentPath), ".pdf"),
+	}
+
+	if p.ApprovedByUser.ID != 0 {
+		resp.Approver = p.ApprovedByUser.FullName
 	}
 
 	if p.PaidAmount != nil {

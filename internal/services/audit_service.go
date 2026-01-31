@@ -30,14 +30,19 @@ func (s *AuditService) Log(ctx context.Context, userID uint, action, entity stri
 }
 
 // List retrieves audit logs with filters
-func (s *AuditService) List(ctx context.Context, limit, offset int) ([]models.AuditLog, int64, error) {
+func (s *AuditService) List(ctx context.Context, limit, offset int, entity string) ([]models.AuditLog, int64, error) {
 	var logs []models.AuditLog
 	var total int64
 
-	if err := s.db.Model(&models.AuditLog{}).Count(&total).Error; err != nil {
+	db := s.db.Model(&models.AuditLog{})
+	if entity != "" {
+		db = db.Where("entity = ?", entity)
+	}
+
+	if err := db.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
-	result := s.db.Preload("User").Order("created_at desc").Limit(limit).Offset(offset).Find(&logs)
+	result := db.Preload("User").Order("created_at desc").Limit(limit).Offset(offset).Find(&logs)
 	return logs, total, result.Error
 }

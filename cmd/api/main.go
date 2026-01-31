@@ -244,7 +244,7 @@ func setupRouter(h *handlers.Handlers, cfg *config.Config) *gin.Engine {
 				sellerAdmin.GET("/payments/statistics", h.Payment.Statistics)
 				sellerAdmin.GET("/payments/stats", h.Payment.Stats)
 				sellerAdmin.GET("/payments/:payment_id", h.Payment.Show)
-				sellerAdmin.GET("/payments/:payment_id/download_receipt", h.Payment.DownloadReceipt)
+
 				sellerAdmin.GET("/projects/:project_id/lots/:lot_id/contracts/:contract_id/payments", h.Payment.IndexByContract)
 				sellerAdmin.GET("/projects/:project_id/lots/:lot_id/contracts/:contract_id/payments/:payment_id", h.Payment.ShowByContract)
 
@@ -292,6 +292,7 @@ func setupRouter(h *handlers.Handlers, cfg *config.Config) *gin.Engine {
 			// Payment receipt upload (users can upload their own receipts)
 			protected.POST("/payments/:payment_id/upload_receipt", h.Payment.UploadReceipt)
 			protected.POST("/projects/:project_id/lots/:lot_id/contracts/:contract_id/payments/:payment_id/upload_receipt", h.Payment.UploadReceiptByContract)
+			protected.GET("/payments/:payment_id/download_receipt", h.Payment.DownloadReceipt)
 
 			// Notifications (users can manage their own notifications)
 			notifications := protected.Group("/notifications")
