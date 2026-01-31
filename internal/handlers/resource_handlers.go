@@ -790,8 +790,9 @@ func (h *AuditHandler) Index(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	perPage, _ := strconv.Atoi(c.DefaultQuery("per_page", "50"))
 	offset := (page - 1) * perPage
+	entity := c.Query("model")
 
-	logs, total, err := h.auditService.List(c.Request.Context(), perPage, offset)
+	logs, total, err := h.auditService.List(c.Request.Context(), perPage, offset, entity)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

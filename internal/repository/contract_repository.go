@@ -133,6 +133,17 @@ func (r *contractRepository) List(ctx context.Context, query *ContractQuery) ([]
 			}
 			db = db.Where("contracts.approved_at <= ?", val)
 		}
+		// Apply created_at date filters (General date filter)
+		if val, ok := query.Filters["start_date"]; ok && val != "" {
+			db = db.Where("contracts.created_at >= ?", val)
+		}
+		if val, ok := query.Filters["end_date"]; ok && val != "" {
+			// Ensure we include the full day if only date is provided
+			if len(val) == 10 { // YYYY-MM-DD
+				val += " 23:59:59"
+			}
+			db = db.Where("contracts.created_at <= ?", val)
+		}
 	}
 
 	// Apply search
@@ -232,6 +243,7 @@ func (r *paymentRepository) FindByID(ctx context.Context, id uint) (*models.Paym
 	err := r.db.WithContext(ctx).
 		Preload("Contract.Lot.Project").
 		Preload("Contract.ApplicantUser").
+		Preload("ApprovedByUser").
 		First(&payment, id).Error
 	if err != nil {
 		return nil, err
@@ -242,6 +254,9 @@ func (r *paymentRepository) FindByID(ctx context.Context, id uint) (*models.Paym
 func (r *paymentRepository) FindByContract(ctx context.Context, contractID uint) ([]models.Payment, error) {
 	var payments []models.Payment
 	err := r.db.WithContext(ctx).
+		Preload("Contract.Lot.Project").
+		Preload("Contract.ApplicantUser").
+		Preload("ApprovedByUser").
 		Where("contract_id = ?", contractID).
 		Order("due_date ASC").
 		Find(&payments).Error
@@ -288,18 +303,49 @@ func (r *paymentRepository) List(ctx context.Context, query *ListQuery) ([]model
 		}
 	}
 
-	// Count total
-	db.Count(&total)
+	// Apply date filters
+	if val, ok := query.Filters["start_date"]; ok && val != "" {
+		db = db.Where("payments.payment_date >= ? OR (payments.payment_date IS NULL AND payments.due_date >= ?)", val, val)
+	}
+	if val, ok := query.Filters["end_date"]; ok && val != "" {
+		endDate := val
+		if len(endDate) == 10 {
+			endDate += " 23:59:59"
+		}
+		db = db.Where("payments.payment_date <= ? OR (payments.payment_date IS NULL AND payments.due_date <= ?)", endDate, endDate)
+	}
+
+	// Apply search filter if provided
+	if search := query.Filters["search_term"]; search != "" {
+		// Join with contracts and users to search by applicant name
+		db = db.Joins("JOIN contracts ON contracts.id = payments.contract_id").
+			Joins("JOIN users ON users.id = contracts.applicant_user_id").
+			Where("(users.full_name LIKE ? OR payments.description LIKE ?)", "%"+search+"%", "%"+search+"%")
+	}
+
+	// Clone the database session for count to avoid affecting the main query
+	countDb := db.Session(&gorm.Session{})
+	if err := countDb.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
 
 	// Apply sorting
 	if query.SortBy != "" {
-		order := query.SortBy
-		if query.SortDir == "desc" {
+		field := query.SortBy
+		// Map frontend fields to database columns if necessary
+		if field == "updated_at" || field == "created_at" || field == "due_date" || field == "payment_date" {
+			field = "payments." + field
+		}
+
+		order := field
+		if strings.ToLower(query.SortDir) == "desc" {
 			order += " DESC"
+		} else {
+			order += " ASC"
 		}
 		db = db.Order(order)
 	} else {
-		db = db.Order("due_date ASC")
+		db = db.Order("payments.due_date ASC")
 	}
 
 	// Apply pagination
@@ -308,8 +354,10 @@ func (r *paymentRepository) List(ctx context.Context, query *ListQuery) ([]model
 	}
 
 	err := db.
+		Select("payments.*"). // Ensure we select only payment fields, especially when joining
 		Preload("Contract.Lot.Project").
 		Preload("Contract.ApplicantUser").
+		Preload("ApprovedByUser").
 		Find(&payments).Error
 
 	return payments, total, err
@@ -332,6 +380,8 @@ func (r *paymentRepository) FindPendingByUser(ctx context.Context, userID uint) 
 		Where("contracts.applicant_user_id = ? AND payments.status IN ?", userID,
 			[]string{models.PaymentStatusPending, models.PaymentStatusSubmitted}).
 		Preload("Contract.Lot.Project").
+		Preload("Contract.ApplicantUser").
+		Preload("ApprovedByUser").
 		Order("payments.due_date ASC").
 		Find(&payments).Error
 	return payments, err
@@ -340,6 +390,9 @@ func (r *paymentRepository) FindPendingByUser(ctx context.Context, userID uint) 
 func (r *paymentRepository) FindPaidByMonth(ctx context.Context, month, year int) ([]models.Payment, error) {
 	var payments []models.Payment
 	err := r.db.WithContext(ctx).
+		Preload("Contract.Lot.Project").
+		Preload("Contract.ApplicantUser").
+		Preload("ApprovedByUser").
 		Where("payments.status = ? AND EXTRACT(MONTH FROM payments.payment_date) = ? AND EXTRACT(YEAR FROM payments.payment_date) = ?",
 			models.PaymentStatusPaid, month, year).
 		Order("payment_date ASC").
