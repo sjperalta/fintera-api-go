@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"html/template"
 
+	"github.com/resend/resend-go/v2"
 	"github.com/sjperalta/fintera-api/internal/config"
 	"github.com/sjperalta/fintera-api/internal/models"
 	"github.com/sjperalta/fintera-api/pkg/logger"
@@ -16,14 +17,15 @@ import (
 var emailTemplates embed.FS
 
 type EmailService struct {
-	config *config.Config
-	// resendClient *resend.Client // Use this when implementing actual sending
+	config       *config.Config
+	resendClient *resend.Client
 }
 
 func NewEmailService(cfg *config.Config) *EmailService {
-	// client := resend.NewClient(cfg.ResendAPIKey)
+	client := resend.NewClient(cfg.ResendAPIKey)
 	return &EmailService{
-		config: cfg,
+		config:       cfg,
+		resendClient: client,
 	}
 }
 
@@ -53,18 +55,19 @@ func (s *EmailService) SendRecoveryCode(ctx context.Context, user *models.User, 
 		return err
 	}
 
-	// TODO: Replace with actual Resend call
-	// params := &resend.SendEmailRequest{
-	// 	From:    s.config.FromEmail,
-	// 	To:      []string{user.Email},
-	// 	Subject: "Código de reseteo",
-	// 	Html:    body,
-	// }
-	// _, err = s.resendClient.Emails.Send(params)
+	params := &resend.SendEmailRequest{
+		From:    s.config.FromEmail,
+		To:      []string{user.Email},
+		Subject: "Código de reseteo",
+		Html:    body,
+	}
+	_, err = s.resendClient.Emails.Send(params)
+	if err != nil {
+		logger.Error(fmt.Sprintf("Failed to send email to %s: %v", user.Email, err))
+		return err
+	}
 
-	// For now, log it
-	logger.Info(fmt.Sprintf("📧 [Mock Email] To: %s | Subject: Código de reseteo | Code: %s", user.Email, code))
-	logger.Debug(fmt.Sprintf("📧 Body Preview: %s", body[:100])) // Print first 100 chars
+	logger.Info(fmt.Sprintf("📧 [Email Sent] To: %s | Subject: Código de reseteo | Code: %s", user.Email, code))
 
 	return nil
 }
@@ -78,12 +81,24 @@ func (s *EmailService) SendAccountCreated(ctx context.Context, user *models.User
 		AppURL: "https://fintera.securexapp.com",
 	}
 
-	_, err := s.renderTemplate("account_created.html", data)
+	body, err := s.renderTemplate("account_created.html", data)
 	if err != nil {
 		return err
 	}
 
-	logger.Info(fmt.Sprintf("📧 [Mock Email] To: %s | Subject: ¡Bienvenido a Fintera!", user.Email))
+	params := &resend.SendEmailRequest{
+		From:    s.config.FromEmail,
+		To:      []string{user.Email},
+		Subject: "¡Bienvenido a Fintera!",
+		Html:    body,
+	}
+	_, err = s.resendClient.Emails.Send(params)
+	if err != nil {
+		logger.Error(fmt.Sprintf("Failed to send email to %s: %v", user.Email, err))
+		return err
+	}
+
+	logger.Info(fmt.Sprintf("📧 [Email Sent] To: %s | Subject: ¡Bienvenido a Fintera!", user.Email))
 	return nil
 }
 
@@ -121,12 +136,24 @@ func (s *EmailService) SendContractSubmitted(ctx context.Context, contract *mode
 		AppURL:        "https://fintera.securexapp.com",
 	}
 
-	_, err := s.renderTemplate("contract_submitted.html", data)
+	body, err := s.renderTemplate("contract_submitted.html", data)
 	if err != nil {
 		return err
 	}
 
-	logger.Info(fmt.Sprintf("📧 [Mock Email] To: %s | Subject: Contrato Creado", contract.ApplicantUser.Email))
+	params := &resend.SendEmailRequest{
+		From:    s.config.FromEmail,
+		To:      []string{contract.ApplicantUser.Email},
+		Subject: "Contrato Creado",
+		Html:    body,
+	}
+	_, err = s.resendClient.Emails.Send(params)
+	if err != nil {
+		logger.Error(fmt.Sprintf("Failed to send email to %s: %v", contract.ApplicantUser.Email, err))
+		return err
+	}
+
+	logger.Info(fmt.Sprintf("📧 [Email Sent] To: %s | Subject: Contrato Creado", contract.ApplicantUser.Email))
 	return nil
 }
 
@@ -160,12 +187,24 @@ func (s *EmailService) SendContractApproved(ctx context.Context, contract *model
 		AppURL:           "https://fintera.securexapp.com",
 	}
 
-	_, err := s.renderTemplate("contract_approved.html", data)
+	body, err := s.renderTemplate("contract_approved.html", data)
 	if err != nil {
 		return err
 	}
 
-	logger.Info(fmt.Sprintf("📧 [Mock Email] To: %s | Subject: Contrato Aprobado", contract.ApplicantUser.Email))
+	params := &resend.SendEmailRequest{
+		From:    s.config.FromEmail,
+		To:      []string{contract.ApplicantUser.Email},
+		Subject: "Contrato Aprobado",
+		Html:    body,
+	}
+	_, err = s.resendClient.Emails.Send(params)
+	if err != nil {
+		logger.Error(fmt.Sprintf("Failed to send email to %s: %v", contract.ApplicantUser.Email, err))
+		return err
+	}
+
+	logger.Info(fmt.Sprintf("📧 [Email Sent] To: %s | Subject: Contrato Aprobado", contract.ApplicantUser.Email))
 	return nil
 }
 
@@ -197,12 +236,24 @@ func (s *EmailService) SendPaymentApproved(ctx context.Context, payment *models.
 		AppURL:         "https://fintera.securexapp.com",
 	}
 
-	_, err := s.renderTemplate("payment_approved.html", data)
+	body, err := s.renderTemplate("payment_approved.html", data)
 	if err != nil {
 		return err
 	}
 
-	logger.Info(fmt.Sprintf("📧 [Mock Email] To: %s | Subject: Pago Aprobado", payment.Contract.ApplicantUser.Email))
+	params := &resend.SendEmailRequest{
+		From:    s.config.FromEmail,
+		To:      []string{payment.Contract.ApplicantUser.Email},
+		Subject: "Pago Aprobado",
+		Html:    body,
+	}
+	_, err = s.resendClient.Emails.Send(params)
+	if err != nil {
+		logger.Error(fmt.Sprintf("Failed to send email to %s: %v", payment.Contract.ApplicantUser.Email, err))
+		return err
+	}
+
+	logger.Info(fmt.Sprintf("📧 [Email Sent] To: %s | Subject: Pago Aprobado", payment.Contract.ApplicantUser.Email))
 	return nil
 }
 
@@ -232,12 +283,24 @@ func (s *EmailService) SendOverduePayments(ctx context.Context, user *models.Use
 		AppURL:   "https://fintera.securexapp.com",
 	}
 
-	_, err := s.renderTemplate("overdue_payment.html", data)
+	body, err := s.renderTemplate("overdue_payment.html", data)
 	if err != nil {
 		return err
 	}
 
-	logger.Info(fmt.Sprintf("📧 [Mock Email] To: %s | Subject: Pagos Vencidos (%d pagos)", user.Email, len(payments)))
+	params := &resend.SendEmailRequest{
+		From:    s.config.FromEmail,
+		To:      []string{user.Email},
+		Subject: fmt.Sprintf("Pagos Vencidos (%d pagos)", len(payments)),
+		Html:    body,
+	}
+	_, err = s.resendClient.Emails.Send(params)
+	if err != nil {
+		logger.Error(fmt.Sprintf("Failed to send email to %s: %v", user.Email, err))
+		return err
+	}
+
+	logger.Info(fmt.Sprintf("📧 [Email Sent] To: %s | Subject: Pagos Vencidos (%d pagos)", user.Email, len(payments)))
 	return nil
 }
 
@@ -263,12 +326,24 @@ func (s *EmailService) SendReservationApproved(ctx context.Context, contract *mo
 		AppURL:        "https://fintera.securexapp.com",
 	}
 
-	_, err := s.renderTemplate("reservation_approved.html", data)
+	body, err := s.renderTemplate("reservation_approved.html", data)
 	if err != nil {
 		return err
 	}
 
-	logger.Info(fmt.Sprintf("📧 [Mock Email] To: %s | Subject: Reserva Aprobada", contract.ApplicantUser.Email))
+	params := &resend.SendEmailRequest{
+		From:    s.config.FromEmail,
+		To:      []string{contract.ApplicantUser.Email},
+		Subject: "Reserva Aprobada",
+		Html:    body,
+	}
+	_, err = s.resendClient.Emails.Send(params)
+	if err != nil {
+		logger.Error(fmt.Sprintf("Failed to send email to %s: %v", contract.ApplicantUser.Email, err))
+		return err
+	}
+
+	logger.Info(fmt.Sprintf("📧 [Email Sent] To: %s | Subject: Reserva Aprobada", contract.ApplicantUser.Email))
 	return nil
 }
 
