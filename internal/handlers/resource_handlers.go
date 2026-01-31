@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/sjperalta/fintera-api/internal/middleware"
@@ -545,6 +546,29 @@ func (h *ReportHandler) CommissionsCSV(c *gin.Context) {
 	c.String(http.StatusOK, buf.String())
 }
 
+// @Summary Commissions List
+// @Description Get a list of commissions for a period
+// @Tags Reports
+// @Accept json
+// @Produce json
+// @Param start_date query string false "Start Date (YYYY-MM-DD)"
+// @Param end_date query string false "End Date (YYYY-MM-DD)"
+// @Success 200 {object} map[string]interface{}
+// @Security BearerAuth
+// @Router /reports/commissions [get]
+func (h *ReportHandler) Commissions(c *gin.Context) {
+	startDate := c.Query("start_date")
+	endDate := c.Query("end_date")
+
+	items, err := h.reportService.GenerateCommissions(c.Request.Context(), startDate, endDate)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"commissions": items})
+}
+
 // @Summary Revenue Report
 // @Description Download total revenue report as CSV
 // @Tags Reports
@@ -713,6 +737,35 @@ func (h *ReportHandler) CustomerRecordPDF(c *gin.Context) {
 	c.Header("Content-Type", "application/pdf")
 	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=customer_record_%d.pdf", contractID))
 	c.Data(http.StatusOK, "application/pdf", buf.Bytes())
+}
+
+// @Summary Seller Dashboard Stats
+// @Description Get statistics for the seller dashboard
+// @Tags Reports
+// @Accept json
+// @Produce json
+// @Param month query int false "Month (1-12)"
+// @Param year query int false "Year"
+// @Success 200 {object} services.SellerDashboardStats
+// @Security BearerAuth
+// @Router /dashboard/seller [get]
+func (h *ReportHandler) SellerDashboard(c *gin.Context) {
+	usrID := middleware.GetUserID(c)
+	if usrID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	month, _ := strconv.Atoi(c.DefaultQuery("month", strconv.Itoa(int(time.Now().Month()))))
+	year, _ := strconv.Atoi(c.DefaultQuery("year", strconv.Itoa(time.Now().Year())))
+
+	stats, err := h.reportService.GetSellerDashboardStats(c.Request.Context(), usrID, month, year)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, stats)
 }
 
 type AuditHandler struct {

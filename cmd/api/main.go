@@ -181,7 +181,7 @@ func setupRouter(h *handlers.Handlers, cfg *config.Config) *gin.Engine {
 			admin.Use(middleware.RequireAdmin())
 			{
 				// User management (admin only)
-				admin.POST("/users", h.User.Create)
+
 				admin.PUT("/users/:user_id", h.User.Update)
 				admin.DELETE("/users/:user_id", h.User.Delete)
 				admin.PUT("/users/:user_id/toggle_status", h.User.ToggleStatus)
@@ -230,8 +230,9 @@ func setupRouter(h *handlers.Handlers, cfg *config.Config) *gin.Engine {
 			sellerAdmin := protected.Group("")
 			sellerAdmin.Use(middleware.RequireRole("admin", "seller"))
 			{
-				// User viewing (seller/admin can list all users)
+				// User viewing (seller/admin can list all users) and creation
 				sellerAdmin.GET("/users", h.User.Index)
+				sellerAdmin.POST("/users", h.User.Create)
 
 				// Contract viewing (seller can view all contracts)
 				sellerAdmin.GET("/contracts", h.Contract.Index)
@@ -263,6 +264,7 @@ func setupRouter(h *handlers.Handlers, cfg *config.Config) *gin.Engine {
 				}
 
 				// Reports (seller can generate reports)
+				sellerAdmin.GET("/reports/commissions", h.Report.Commissions)
 				sellerAdmin.GET("/reports/commissions_csv", h.Report.CommissionsCSV)
 				sellerAdmin.GET("/reports/total_revenue_csv", h.Report.TotalRevenueCSV)
 				sellerAdmin.GET("/reports/overdue_payments_csv", h.Report.OverduePaymentsCSV)
@@ -271,6 +273,7 @@ func setupRouter(h *handlers.Handlers, cfg *config.Config) *gin.Engine {
 				sellerAdmin.GET("/reports/user_rescission_contract_pdf", h.Report.UserRescissionContractPDF)
 				sellerAdmin.GET("/reports/user_information_pdf", h.Report.UserInformationPDF)
 				sellerAdmin.GET("/reports/customer_record_pdf", h.Report.CustomerRecordPDF)
+				sellerAdmin.GET("/dashboard/seller", h.Report.SellerDashboard)
 
 				// Audits (seller can view audit logs)
 				sellerAdmin.GET("/audits", h.Audit.Index)

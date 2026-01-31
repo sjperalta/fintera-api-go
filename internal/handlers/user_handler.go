@@ -43,7 +43,14 @@ func (h *UserHandler) Index(c *gin.Context) {
 	query.PerPage, _ = strconv.Atoi(c.DefaultQuery("per_page", "20"))
 	query.Search = c.Query("search_term")
 	query.Filters["role"] = c.Query("role")
-	query.Filters["status"] = c.Query("status")
+
+	status := c.Query("status")
+	if status == "" {
+		status = models.StatusActive
+	} else if status == "all" {
+		status = ""
+	}
+	query.Filters["status"] = status
 
 	users, total, err := h.userService.List(c.Request.Context(), query)
 	if err != nil {
@@ -88,14 +95,15 @@ func (h *UserHandler) Show(c *gin.Context) {
 }
 
 type CreateUserRequest struct {
-	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required,min=6"`
-	FullName string `json:"full_name" binding:"required"`
-	Phone    string `json:"phone"`
-	Role     string `json:"role"`
-	Identity string `json:"identity"`
-	RTN      string `json:"rtn"`
-	Address  string `json:"address"`
+	Email          string `json:"email" binding:"required,email"`
+	Password       string `json:"password" binding:"required,min=6"`
+	FullName       string `json:"full_name"`
+	FullNamePascal string `json:"FullName"` // Support PascalCase from some frontends/tools
+	Phone          string `json:"phone"`
+	Role           string `json:"role"`
+	Identity       string `json:"identity"`
+	RTN            string `json:"rtn"`
+	Address        string `json:"address"`
 }
 
 // @Summary Create User
@@ -112,6 +120,23 @@ func (h *UserHandler) Create(c *gin.Context) {
 	var req CreateUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Support both full_name and FullName
+	if req.FullName == "" && req.FullNamePascal != "" {
+		req.FullName = req.FullNamePascal
+	}
+
+	// Manual validation for FullName since we removed binding:"required" to support the alias
+	if req.FullName == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Key: 'CreateUserRequest.FullName' Error:Field validation for 'FullName' failed on the 'required' tag"})
+		return
+	}
+
+	creatorRole := middleware.GetUserRole(c)
+	if creatorRole == "seller" && req.Role != "user" && req.Role != "" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Los vendedores solo pueden crear usuarios con rol 'user'"})
 		return
 	}
 
