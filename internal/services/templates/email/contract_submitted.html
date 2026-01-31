@@ -3,121 +3,136 @@
 
 <head>
     <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            color: #2c3e50;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            padding: 40px 20px;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: #f3f4f6;
             margin: 0;
+            padding: 0;
+            -webkit-font-smoothing: antialiased;
         }
 
         .container {
             max-width: 600px;
-            margin: 0 auto;
+            margin: 40px auto;
             background-color: #ffffff;
-            border-radius: 12px;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+            border-radius: 16px;
             overflow: hidden;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
         }
 
         .header {
-            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
-            padding: 30px 20px;
+            background-color: #1e3a8a;
+            padding: 32px;
             text-align: center;
         }
 
-        .header h1 {
+        .logo {
             color: #ffffff;
-            margin: 0;
-            font-size: 28px;
-            font-weight: 600;
+            font-size: 24px;
+            font-weight: 700;
+            letter-spacing: -0.025em;
+            text-decoration: none;
         }
 
         .content {
-            padding: 30px;
+            padding: 40px 32px;
         }
 
-        .greeting {
-            font-size: 18px;
-            color: #3498db;
-            font-weight: 600;
-            margin-bottom: 15px;
+        h1 {
+            color: #111827;
+            font-size: 24px;
+            font-weight: 700;
+            margin: 0 0 16px 0;
+            letter-spacing: -0.025em;
         }
 
-        .intro {
-            color: #34495e;
+        p {
+            color: #4b5563;
+            font-size: 16px;
             line-height: 1.6;
-            margin-bottom: 25px;
+            margin: 0 0 24px 0;
         }
 
-        .details-card {
-            background: #f8f9fa;
-            border-radius: 8px;
-            padding: 20px;
-            margin: 20px 0;
+        .status-badge {
+            display: inline-block;
+            background: #fef3c7;
+            color: #92400e;
+            padding: 6px 12px;
+            border-radius: 9999px;
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 24px;
         }
 
-        .detail-row {
+        .details-grid {
+            display: grid;
+            gap: 16px;
+            padding: 24px;
+            background-color: #f9fafb;
+            border-radius: 12px;
+            margin: 24px 0;
+        }
+
+        .detail-item {
             display: flex;
             justify-content: space-between;
-            padding: 12px 0;
-            border-bottom: 1px solid #e9ecef;
+            align-items: center;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #e5e7eb;
         }
 
-        .detail-row:last-child {
+        .detail-item:last-child {
             border-bottom: none;
+            padding-bottom: 0;
         }
 
         .detail-label {
-            color: #7f8c8d;
+            color: #6b7280;
             font-size: 14px;
         }
 
         .detail-value {
-            color: #2c3e50;
+            color: #111827;
             font-weight: 600;
+            font-size: 14px;
             text-align: right;
         }
 
-        .status-box {
-            background: #fff3cd;
-            border-left: 4px solid #ffc107;
-            padding: 15px;
-            margin: 20px 0;
-            border-radius: 4px;
-        }
-
-        .status-box strong {
-            color: #856404;
-        }
-
-        .cta-button {
+        .button {
             display: block;
             width: fit-content;
-            margin: 30px auto;
-            padding: 15px 40px;
-            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
-            color: white;
+            margin: 32px auto 0;
+            background-color: #1e3a8a;
+            color: #ffffff;
+            padding: 14px 28px;
+            border-radius: 8px;
             text-decoration: none;
-            border-radius: 25px;
             font-weight: 600;
+            font-size: 16px;
             text-align: center;
-            box-shadow: 0 4px 15px rgba(52, 152, 219, 0.3);
-            transition: transform 0.2s;
-        }
-
-        .cta-button:hover {
-            transform: translateY(-2px);
         }
 
         .footer {
-            background: #f8f9fa;
-            padding: 20px;
+            background-color: #f9fafb;
+            padding: 24px;
             text-align: center;
-            color: #7f8c8d;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        .footer p {
+            color: #9ca3af;
             font-size: 12px;
-            border-top: 1px solid #e9ecef;
+            margin: 4px 0;
+        }
+
+        @media (max-width: 640px) {
+            .container {
+                margin: 20px;
+            }
         }
     </style>
 </head>
@@ -125,54 +140,51 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>📝 Contrato Creado</h1>
+            <div class="logo">Fintera</div>
         </div>
-
         <div class="content">
-            <p class="greeting">¡Felicidades, {{.Name}}!</p>
+            <div class="status-badge">⏳ Pendiente de Aprobación</div>
+            <h1>Contrato Enviado</h1>
+            <p>Hola {{.Name}},</p>
+            <p>Se ha creado exitosamente tu solicitud de contrato para el proyecto <strong>{{.ProjectName}}</strong>.
+                Nuestro equipo revisará la información en breve.</p>
 
-            <p class="intro">Nos complace informarte que tu solicitud de contrato ha sido creada para el proyecto
-                {{.ProjectName}}.</p>
-
-            <div class="status-box">
-                <strong>⏳ Tu contrato está pendiente de aprobación.</strong>
-            </div>
-
-            <div class="details-card">
-                <div class="detail-row">
-                    <span class="detail-label">📍 Proyecto</span>
+            <div class="details-grid">
+                <div class="detail-item">
+                    <span class="detail-label">Proyecto</span>
                     <span class="detail-value">{{.ProjectName}}</span>
                 </div>
-                <div class="detail-row">
-                    <span class="detail-label">🏘️ Lote</span>
-                    <span class="detail-value">{{.LotName}} - {{.LotAddress}}</span>
+                <div class="detail-item">
+                    <span class="detail-label">Lote</span>
+                    <span class="detail-value">{{.LotName}}</span>
                 </div>
-                <div class="detail-row">
-                    <span class="detail-label">💳 Tipo de Financiamiento</span>
+                <div class="detail-item">
+                    <span class="detail-label">Ubicación</span>
+                    <span class="detail-value">{{.LotAddress}}</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">Financiamiento</span>
                     <span class="detail-value">{{.FinancingType}}</span>
                 </div>
-                <div class="detail-row">
-                    <span class="detail-label">📅 Plazo</span>
+                <div class="detail-item">
+                    <span class="detail-label">Plazo</span>
                     <span class="detail-value">{{.PaymentTerm}} meses</span>
                 </div>
-                <div class="detail-row">
-                    <span class="detail-label">🏦 Reserva</span>
+                <div class="detail-item">
+                    <span class="detail-label">Reserva</span>
                     <span class="detail-value">{{.ReserveAmount}}</span>
                 </div>
-                <div class="detail-row">
-                    <span class="detail-label">💰 Prima</span>
+                <div class="detail-item">
+                    <span class="detail-label">Prima</span>
                     <span class="detail-value">{{.DownPayment}}</span>
                 </div>
             </div>
 
-            <a href="{{.AppURL}}/dashboard" class="cta-button">Ver Plataforma</a>
+            <a href="{{.AppURL}}/dashboard" class="button">Ver en Plataforma</a>
         </div>
-
         <div class="footer">
-            <p>Si tienes alguna pregunta, por favor contacta a nuestro equipo de soporte.</p>
-            <p style="margin-top: 10px; color: #95a5a6;">
-                Fecha de creación: {{.CreatedAt}}
-            </p>
+            <p>Fecha de creación: {{.CreatedAt}}</p>
+            <p>&copy; 2026 Fintera. Todos los derechos reservados.</p>
         </div>
     </div>
 </body>

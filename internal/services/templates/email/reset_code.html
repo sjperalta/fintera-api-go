@@ -1,132 +1,148 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <meta charset="utf-8">
-    <style>
-      body {
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        color: #2c3e50;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 40px 20px;
-        margin: 0;
-      }
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background-color: #f3f4f6;
+      margin: 0;
+      padding: 0;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .container {
+      max-width: 600px;
+      margin: 40px auto;
+      background-color: #ffffff;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    }
+
+    .header {
+      background-color: #1e3a8a;
+      padding: 32px;
+      text-align: center;
+    }
+
+    .logo {
+      color: #ffffff;
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: -0.025em;
+      text-decoration: none;
+    }
+
+    .content {
+      padding: 40px 32px;
+    }
+
+    h1 {
+      color: #111827;
+      font-size: 24px;
+      font-weight: 700;
+      margin: 0 0 16px 0;
+      letter-spacing: -0.025em;
+    }
+
+    p {
+      color: #4b5563;
+      font-size: 16px;
+      line-height: 1.6;
+      margin: 0 0 24px 0;
+    }
+
+    .code-container {
+      background-color: #eff6ff;
+      border: 1px solid #bfdbfe;
+      border-radius: 12px;
+      padding: 24px;
+      text-align: center;
+      margin: 32px 0;
+    }
+
+    .code-label {
+      color: #1e40af;
+      font-size: 14px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 8px;
+    }
+
+    .code {
+      color: #1e3a8a;
+      font-family: monospace;
+      font-size: 36px;
+      font-weight: 700;
+      letter-spacing: 0.25em;
+    }
+
+    .footer {
+      background-color: #f9fafb;
+      padding: 24px;
+      text-align: center;
+      border-top: 1px solid #e5e7eb;
+    }
+
+    .footer p {
+      color: #9ca3af;
+      font-size: 14px;
+      margin: 0;
+    }
+
+    .button {
+      display: inline-block;
+      background-color: #1e3a8a;
+      color: #ffffff;
+      padding: 14px 28px;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 16px;
+      margin-top: 8px;
+    }
+
+    @media (max-width: 640px) {
       .container {
-        max-width: 600px;
-        margin: 0 auto;
-        background-color: #ffffff;
+        margin: 20px;
         border-radius: 12px;
-        box-shadow: 0 10px 40px rgba(0,0,0,0.15);
-        overflow: hidden;
       }
-      .header {
-        background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
-        padding: 30px 20px;
-        text-align: center;
-      }
-      .header h1 {
-        color: #ffffff;
-        margin: 0;
-        font-size: 28px;
-        font-weight: 600;
-      }
+
       .content {
-        padding: 30px;
+        padding: 24px;
       }
-      .greeting {
-        font-size: 18px;
-        color: #3498db;
-        font-weight: 600;
-        margin-bottom: 15px;
-      }
-      .intro {
-        color: #34495e;
-        line-height: 1.6;
-        margin-bottom: 25px;
-      }
-      .code-box {
-        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-        padding: 30px;
-        margin: 30px 0;
-        border-radius: 12px;
-        text-align: center;
-        box-shadow: 0 4px 15px rgba(245, 87, 108, 0.3);
-      }
-      .code-label {
-        color: white;
-        font-size: 14px;
-        opacity: 0.9;
-        margin-bottom: 10px;
-      }
-      .code {
-        font-size: 48px;
-        font-weight: 700;
-        color: white;
-        letter-spacing: 8px;
-        font-family: 'Courier New', monospace;
-      }
-      .warning-box {
-        background: #fff3cd;
-        border-left: 4px solid #ffc107;
-        padding: 15px;
-        margin: 20px 0;
-        border-radius: 4px;
-      }
-      .warning-box strong {
-        color: #856404;
-      }
-      .cta-button {
-        display: block;
-        width: fit-content;
-        margin: 30px auto;
-        padding: 15px 40px;
-        background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
-        color: white;
-        text-decoration: none;
-        border-radius: 25px;
-        font-weight: 600;
-        text-align: center;
-        box-shadow: 0 4px 15px rgba(52, 152, 219, 0.3);
-        transition: transform 0.2s;
-      }
-      .cta-button:hover {
-        transform: translateY(-2px);
-      }
-      .footer {
-        background: #f8f9fa;
-        padding: 20px;
-        text-align: center;
-        color: #7f8c8d;
-        font-size: 12px;
-        border-top: 1px solid #e9ecef;
-      }
-    </style>
-  </head>
-  <body>
-    <div class="container">
-      <div class="header">
-        <h1>🔐 Código de reseteo</h1>
-      </div>
+    }
+  </style>
+</head>
 
-      <div class="content">
-        <p class="greeting">Hola {{.Name}},</p>
-
-        <p class="intro">Has solicitado un código para restablecer tu contraseña.</p>
-
-        <div class="code-box">
-          <div class="code-label">Tu código de verificación</div>
-          <div class="code">{{.Code}}</div>
-        </div>
-
-        <div class="warning-box">
-          <strong>⏰ Tu código para reestablecer tu contraseña es {{.Code}}. Este código expira en {{.Minutes}} minutos.</strong>
-        </div>
-
-        <a href="{{.AppURL}}/login" class="cta-button">Restablecer Contraseña</a>
-      </div>
-
-      <div class="footer">
-        <p>Si tienes alguna pregunta, por favor contacta a nuestro equipo de soporte.</p>
-      </div>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="logo">Fintera</div>
     </div>
-  </body>
+    <div class="content">
+      <h1>Código de Verificación</h1>
+      <p>Hola {{.Name}},</p>
+      <p>Has solicitado restablecer tu contraseña. Utiliza el siguiente código para continuar. Este código expirará en
+        {{.Minutes}} minutos.</p>
+
+      <div class="code-container">
+        <div class="code-label">Tu código de seguridad</div>
+        <div class="code">{{.Code}}</div>
+      </div>
+
+      <p>Si no solicitaste este cambio, puedes ignorar este correo de forma segura.</p>
+    </div>
+    <div class="footer">
+      <p>&copy; 2026 Fintera. Todos los derechos reservados.</p>
+    </div>
+  </div>
+</body>
+
 </html>

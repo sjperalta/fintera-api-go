@@ -23,7 +23,7 @@ type AnalyticsRepository interface {
 	GetOccupancyRate(ctx context.Context, projectID *uint) (float64, error)
 	GetRevenueTrend(ctx context.Context, projectID *uint, timeframe string, year *int) ([]models.RevenueTrendPoint, error)
 	GetLotDistribution(ctx context.Context, projectID *uint) (*models.LotDistribution, error)
-	GetProjectPerformance(ctx context.Context) ([]models.ProjectPerformance, error)
+	GetProjectPerformance(ctx context.Context, projectID *uint, startDate, endDate *time.Time, year *int, revenueTimeframe string) ([]models.ProjectPerformance, error)
 }
 
 type analyticsRepository struct {
@@ -331,9 +331,13 @@ func (r *analyticsRepository) GetLotDistribution(ctx context.Context, projectID 
 	return &dist, nil
 }
 
-func (r *analyticsRepository) GetProjectPerformance(ctx context.Context) ([]models.ProjectPerformance, error) {
+func (r *analyticsRepository) GetProjectPerformance(ctx context.Context, projectID *uint, startDate, endDate *time.Time, year *int, revenueTimeframe string) ([]models.ProjectPerformance, error) {
+	query := r.db.WithContext(ctx).Preload("Lots")
+	if projectID != nil {
+		query = query.Where("id = ?", *projectID)
+	}
 	var projects []models.Project
-	err := r.db.WithContext(ctx).Preload("Lots").Find(&projects).Error
+	err := query.Find(&projects).Error
 	if err != nil {
 		return nil, err
 	}

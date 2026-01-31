@@ -3,99 +3,96 @@
 
 <head>
     <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            color: #2c3e50;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            padding: 40px 20px;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: #f3f4f6;
             margin: 0;
+            padding: 0;
+            -webkit-font-smoothing: antialiased;
         }
 
         .container {
             max-width: 600px;
-            margin: 0 auto;
+            margin: 40px auto;
             background-color: #ffffff;
-            border-radius: 12px;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+            border-radius: 16px;
             overflow: hidden;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
         }
 
         .header {
-            background: linear-gradient(135deg, #27ae60 0%, #229954 100%);
-            padding: 30px 20px;
+            background-color: #1e3a8a;
+            padding: 32px;
             text-align: center;
         }
 
-        .header h1 {
+        .logo {
             color: #ffffff;
-            margin: 0;
-            font-size: 28px;
-            font-weight: 600;
+            font-size: 24px;
+            font-weight: 700;
+            letter-spacing: -0.025em;
+            text-decoration: none;
         }
 
         .content {
-            padding: 30px;
-        }
-
-        .greeting {
-            font-size: 18px;
-            color: #27ae60;
-            font-weight: 600;
-            margin-bottom: 15px;
-        }
-
-        .intro {
-            color: #34495e;
-            line-height: 1.6;
-            margin-bottom: 25px;
-        }
-
-        .welcome-box {
-            background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
-            padding: 25px;
-            margin: 25px 0;
-            border-radius: 8px;
+            padding: 40px 32px;
             text-align: center;
         }
 
-        .welcome-box h2 {
-            color: #27ae60;
-            margin: 0 0 10px 0;
+        .icon {
+            font-size: 48px;
+            margin-bottom: 24px;
+        }
+
+        h1 {
+            color: #111827;
             font-size: 24px;
+            font-weight: 700;
+            margin: 0 0 16px 0;
+            letter-spacing: -0.025em;
         }
 
-        .welcome-box p {
-            color: #2c3e50;
-            margin: 0;
+        p {
+            color: #4b5563;
+            font-size: 16px;
+            line-height: 1.6;
+            margin: 0 0 24px 0;
         }
 
-        .cta-button {
-            display: block;
-            width: fit-content;
-            margin: 30px auto;
-            padding: 15px 40px;
-            background: linear-gradient(135deg, #27ae60 0%, #229954 100%);
-            color: white;
+        .button {
+            display: inline-block;
+            background-color: #1e3a8a;
+            color: #ffffff;
+            padding: 16px 32px;
+            border-radius: 8px;
             text-decoration: none;
-            border-radius: 25px;
             font-weight: 600;
-            text-align: center;
-            box-shadow: 0 4px 15px rgba(39, 174, 96, 0.3);
-            transition: transform 0.2s;
-        }
-
-        .cta-button:hover {
-            transform: translateY(-2px);
+            font-size: 16px;
+            margin-top: 8px;
+            box-shadow: 0 4px 6px -1px rgba(30, 58, 138, 0.2);
         }
 
         .footer {
-            background: #f8f9fa;
-            padding: 20px;
+            background-color: #f9fafb;
+            padding: 24px;
             text-align: center;
-            color: #7f8c8d;
-            font-size: 12px;
-            border-top: 1px solid #e9ecef;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        .footer p {
+            color: #9ca3af;
+            font-size: 14px;
+            margin: 0;
+        }
+
+        @media (max-width: 640px) {
+            .container {
+                margin: 20px;
+            }
         }
     </style>
 </head>
@@ -103,24 +100,18 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>👋 ¡Bienvenido a Fintera!</h1>
+            <div class="logo">Fintera</div>
         </div>
-
         <div class="content">
-            <p class="greeting">Estimado {{.Name}},</p>
+            <div class="icon">🎉</div>
+            <h1>¡Bienvenido a Fintera!</h1>
+            <p>Hola {{.Name}},</p>
+            <p>Tu cuenta ha sido creada exitosamente. Estamos emocionados de acompañarte en este viaje.</p>
 
-            <div class="welcome-box">
-                <h2>🎉 ¡Bienvenido a Fintera!</h2>
-                <p>Tu cuenta ha sido creada exitosamente. ¡Estamos emocionados de tenerte con nosotros!</p>
-            </div>
-
-            <p class="intro">Si tienes alguna pregunta, no dudes en comunicarte con nuestro equipo de soporte.</p>
-
-            <a href="{{.AppURL}}/login" class="cta-button">Iniciar Sesión</a>
+            <a href="{{.AppURL}}/login" class="button">Iniciar Sesión</a>
         </div>
-
         <div class="footer">
-            <p>Saludos cordiales,<br>El equipo de Fintera</p>
+            <p>&copy; 2026 Fintera. Todos los derechos reservados.</p>
         </div>
     </div>
 </body>

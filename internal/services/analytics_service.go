@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/sjperalta/fintera-api/internal/models"
@@ -197,11 +198,14 @@ func (s *AnalyticsService) GetDistribution(ctx context.Context, projectID *uint)
 	return dist, nil
 }
 
-func (s *AnalyticsService) GetPerformance(ctx context.Context) ([]models.ProjectPerformance, error) {
+func (s *AnalyticsService) GetPerformance(ctx context.Context, filters AnalyticsFilters) ([]models.ProjectPerformance, error) {
 	cacheKey := "analytics_performance"
+	if filters.ProjectID != nil {
+		cacheKey += fmt.Sprintf("_project_%d", *filters.ProjectID)
+	}
 
 	// Check cache
-	cached, err := s.analyticsRepo.GetCache(ctx, cacheKey, nil)
+	cached, err := s.analyticsRepo.GetCache(ctx, cacheKey, filters.ProjectID)
 	if err == nil && cached != nil {
 		var perf []models.ProjectPerformance
 		if err := json.Unmarshal(cached.Data, &perf); err == nil {
@@ -209,13 +213,13 @@ func (s *AnalyticsService) GetPerformance(ctx context.Context) ([]models.Project
 		}
 	}
 
-	perf, err := s.analyticsRepo.GetProjectPerformance(ctx)
+	perf, err := s.analyticsRepo.GetProjectPerformance(ctx, filters.ProjectID, filters.StartDate, filters.EndDate, filters.Year, filters.RevenueTimeframe)
 	if err != nil {
 		return nil, err
 	}
 
 	// Set cache (30 min TTL)
-	_ = s.analyticsRepo.SetCache(ctx, cacheKey, nil, perf, 30*time.Minute)
+	_ = s.analyticsRepo.SetCache(ctx, cacheKey, filters.ProjectID, perf, 30*time.Minute)
 
 	return perf, nil
 }
@@ -236,7 +240,7 @@ func (s *AnalyticsService) RefreshCache(ctx context.Context) error {
 	// Refresh global stats
 	_, _ = s.GetOverview(ctx, AnalyticsFilters{})
 	_, _ = s.GetDistribution(ctx, nil)
-	_, _ = s.GetPerformance(ctx)
+	_, _ = s.GetPerformance(ctx, AnalyticsFilters{})
 
 	// Refresh each project stats
 	for _, p := range projects {

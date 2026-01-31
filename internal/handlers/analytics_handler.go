@@ -50,14 +50,8 @@ func (h *AnalyticsHandler) Overview(c *gin.Context) {
 // @Security BearerAuth
 // @Router /analytics/distribution [get]
 func (h *AnalyticsHandler) Distribution(c *gin.Context) {
-	var projectID *uint
-	if pidStr := c.Query("project_id"); pidStr != "" {
-		pid, _ := strconv.ParseUint(pidStr, 10, 64)
-		uintPid := uint(pid)
-		projectID = &uintPid
-	}
-
-	dist, err := h.analyticsSvc.GetDistribution(c.Request.Context(), projectID)
+	filters := h.parseFilters(c)
+	dist, err := h.analyticsSvc.GetDistribution(c.Request.Context(), filters.ProjectID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -72,7 +66,8 @@ func (h *AnalyticsHandler) Distribution(c *gin.Context) {
 // @Security BearerAuth
 // @Router /analytics/performance [get]
 func (h *AnalyticsHandler) Performance(c *gin.Context) {
-	perf, err := h.analyticsSvc.GetPerformance(c.Request.Context())
+	filters := h.parseFilters(c)
+	perf, err := h.analyticsSvc.GetPerformance(c.Request.Context(), filters)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -142,11 +137,15 @@ func (h *AnalyticsHandler) parseFilters(c *gin.Context) services.AnalyticsFilter
 	if startStr := c.Query("start_date"); startStr != "" {
 		if t, err := time.Parse(time.RFC3339, startStr); err == nil {
 			filters.StartDate = &t
+		} else if t, err := time.Parse("2006-01-02", startStr); err == nil {
+			filters.StartDate = &t
 		}
 	}
 
 	if endStr := c.Query("end_date"); endStr != "" {
 		if t, err := time.Parse(time.RFC3339, endStr); err == nil {
+			filters.EndDate = &t
+		} else if t, err := time.Parse("2006-01-02", endStr); err == nil {
 			filters.EndDate = &t
 		}
 	}
