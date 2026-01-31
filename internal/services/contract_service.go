@@ -119,6 +119,10 @@ func (s *ContractService) GetUserByEmail(ctx context.Context, email string) (*mo
 	return s.userRepo.FindByEmail(ctx, email)
 }
 
+func (s *ContractService) GetUserByID(ctx context.Context, id uint) (*models.User, error) {
+	return s.userRepo.FindByID(ctx, id)
+}
+
 func (s *ContractService) GetUserByIdentity(ctx context.Context, identity string) (*models.User, error) {
 	return s.userRepo.FindByIdentity(ctx, identity)
 }

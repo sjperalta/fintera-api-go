@@ -123,7 +123,17 @@ func (h *ContractHandler) Create(c *gin.Context) {
 	if applicantUserIDStr != "" {
 		// Existing User
 		id, _ := strconv.ParseUint(applicantUserIDStr, 10, 32)
-		applicantID = uint(id)
+		user, err := h.contractService.GetUserByID(c.Request.Context(), uint(id))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Usuario no encontrado"})
+			return
+		}
+
+		if !user.IsActive() {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "El usuario no está activo y no puede crear contratos"})
+			return
+		}
+		applicantID = user.ID
 	} else {
 		// Create New User
 		// Check if email already exists

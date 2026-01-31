@@ -118,7 +118,21 @@ func (r *contractRepository) List(ctx context.Context, query *ContractQuery) ([]
 
 	// Apply lot filter
 	if query.LotID > 0 {
-		db = db.Where("lot_id = ?", query.LotID)
+		db = db.Where("contracts.lot_id = ?", query.LotID)
+	}
+
+	// Apply approved_at date filters
+	if query.Filters != nil {
+		if val, ok := query.Filters["approved_from"]; ok && val != "" {
+			db = db.Where("contracts.approved_at >= ?", val)
+		}
+		if val, ok := query.Filters["approved_to"]; ok && val != "" {
+			// Ensure we include the full day if only date is provided
+			if len(val) == 10 { // YYYY-MM-DD
+				val += " 23:59:59"
+			}
+			db = db.Where("contracts.approved_at <= ?", val)
+		}
 	}
 
 	// Apply search

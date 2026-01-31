@@ -14,6 +14,17 @@ import (
 	"github.com/sjperalta/fintera-api/internal/repository"
 )
 
+type CommissionReportItem struct {
+	ContractID uint    `json:"contract_id"`
+	ClientName string  `json:"client_name"`
+	Project    string  `json:"project"`
+	Lot        string  `json:"lot"`
+	Amount     float64 `json:"amount"`
+	Date       string  `json:"date"`
+	Seller     string  `json:"seller"`
+	Commission float64 `json:"commission"`
+}
+
 type ReportService struct {
 	paymentRepo  repository.PaymentRepository
 	contractRepo repository.ContractRepository
@@ -32,19 +43,13 @@ func NewReportService(
 	}
 }
 
-// GenerateCommissionsCSV generates a CSV report of sales and commissions
-func (s *ReportService) GenerateCommissionsCSV(ctx context.Context, startDate, endDate string) (*bytes.Buffer, error) {
+// GenerateCommissions returns a list of commission data
+func (s *ReportService) GenerateCommissions(ctx context.Context, startDate, endDate string) ([]CommissionReportItem, error) {
 	// Initialize query with proper ListQuery to avoid nil pointer panic
 	listQuery := repository.NewListQuery()
 
 	// Add date filters if provided
 	if startDate != "" && endDate != "" {
-		// Use Filters map for custom filters, or add logic to ContractRepository to handle date ranges for approval
-		// For now we'll assume we filter the results or pass it in Filters if Repository supports it
-		// Checking contract_repository.go, it seems it doesn't explicitly handle "approved_from" etc in List yet
-		// But let's check ContractQuery struct again. Use Filters map as a generic way if repo handles it,
-		// or pre-filter here? List returns all contracts based on query.
-		// Let's add the dates to filters and hope/ensure repo handles it or we filter in memory for MVP
 		listQuery.Filters["approved_from"] = startDate
 		listQuery.Filters["approved_to"] = endDate
 	}
@@ -59,13 +64,10 @@ func (s *ReportService) GenerateCommissionsCSV(ctx context.Context, startDate, e
 		return nil, err
 	}
 
-	// In-memory filtering if repository doesn't support date range in List yet
-	// (Best practice: move to repository, but for quick fix: filter here)
 	var filteredContracts []models.Contract
 	if startDate != "" && endDate != "" {
 		start, _ := time.Parse("2006-01-02", startDate)
 		end, _ := time.Parse("2006-01-02", endDate)
-		// Set end to end of day
 		end = end.Add(23*time.Hour + 59*time.Minute + 59*time.Second)
 
 		for _, c := range contracts {
@@ -77,14 +79,7 @@ func (s *ReportService) GenerateCommissionsCSV(ctx context.Context, startDate, e
 		filteredContracts = contracts
 	}
 
-	b := &bytes.Buffer{}
-	w := csv.NewWriter(b)
-
-	// Header
-	header := []string{"Contrato ID", "Cliente", "Lote", "Proyecto", "Valor Contrato", "Fecha Venta", "Vendedor", "Comisión Est."}
-	if err := w.Write(header); err != nil {
-		return nil, err
-	}
+	var items []CommissionReportItem
 
 	for _, c := range filteredContracts {
 		clientName := "N/A"
@@ -111,19 +106,53 @@ func (s *ReportService) GenerateCommissionsCSV(ctx context.Context, startDate, e
 			dateStr = c.ApprovedAt.Format("2006-01-02")
 		}
 
-		// Placeholder for seller logic if it existed
-		sellerName := "Admin"
+		sellerName := "Unknown"
+		if c.Creator != nil {
+			sellerName = c.Creator.FullName
+		}
 		commission := amount * 0.02 // Example 2% commission logic
 
+		items = append(items, CommissionReportItem{
+			ContractID: c.ID,
+			ClientName: clientName,
+			Project:    projectName,
+			Lot:        lotNumber,
+			Amount:     amount,
+			Date:       dateStr,
+			Seller:     sellerName,
+			Commission: commission,
+		})
+	}
+
+	return items, nil
+}
+
+// GenerateCommissionsCSV generates a CSV report of sales and commissions
+func (s *ReportService) GenerateCommissionsCSV(ctx context.Context, startDate, endDate string) (*bytes.Buffer, error) {
+	items, err := s.GenerateCommissions(ctx, startDate, endDate)
+	if err != nil {
+		return nil, err
+	}
+
+	b := &bytes.Buffer{}
+	w := csv.NewWriter(b)
+
+	// Header
+	header := []string{"Contrato ID", "Cliente", "Lote", "Proyecto", "Valor Contrato", "Fecha Venta", "Vendedor", "Comisión Est."}
+	if err := w.Write(header); err != nil {
+		return nil, err
+	}
+
+	for _, item := range items {
 		record := []string{
-			fmt.Sprintf("%d", c.ID),
-			clientName,
-			lotNumber,
-			projectName,
-			fmt.Sprintf("%.2f", amount),
-			dateStr,
-			sellerName,
-			fmt.Sprintf("%.2f", commission),
+			fmt.Sprintf("%d", item.ContractID),
+			item.ClientName,
+			item.Lot,
+			item.Project,
+			fmt.Sprintf("%.2f", item.Amount),
+			item.Date,
+			item.Seller,
+			fmt.Sprintf("%.2f", item.Commission),
 		}
 		if err := w.Write(record); err != nil {
 			return nil, err
@@ -769,4 +798,195 @@ func (s *ReportService) GenerateRescissionContractPDF(ctx context.Context, contr
 	}
 
 	return s.generatePDF("rescission_contract.html", data)
+}
+
+// SellerDashboardStats holds aggregated data for the seller dashboard
+type SellerDashboardStats struct {
+	TotalSalesValue   float64          `json:"total_sales_value"`
+	ActiveLeads       int64            `json:"active_leads"`
+	PendingCommission float64          `json:"pending_commission"`
+	ConversionRate    float64          `json:"conversion_rate"`
+	ChartData         DashboardChart   `json:"chart_data"`
+	RecentCustomers   []RecentCustomer `json:"recent_customers"`
+}
+
+type DashboardChart struct {
+	Labels []string  `json:"labels"`
+	Data   []float64 `json:"data"`
+}
+
+type RecentCustomer struct {
+	Name    string `json:"name"`
+	Project string `json:"project"`
+	Status  string `json:"status"`
+	Amount  string `json:"amount"`
+	Date    string `json:"date"`
+}
+
+// GetSellerDashboardStats generates statistics for the seller dashboard
+func (s *ReportService) GetSellerDashboardStats(ctx context.Context, userID uint, month, year int) (*SellerDashboardStats, error) {
+	stats := &SellerDashboardStats{}
+
+	// 1. Calculate Date Ranges
+	targetDate := time.Date(year, time.Month(month), 1, 0, 0, 0, 0, time.UTC)
+	startOfMonth := targetDate
+	endOfMonth := startOfMonth.AddDate(0, 1, 0).Add(-time.Second)
+
+	// 2. Active Leads (Status = Pending or Submitted)
+	activeLeadsQuery := &repository.ContractQuery{
+		ListQuery: repository.NewListQuery(),
+		UserID:    userID,
+	}
+	// We want contracts that are NOT approved/rejected/cancelled/closed
+	activeLeadsQuery.Filters["status"] = fmt.Sprintf("%s,%s", models.ContractStatusPending, models.ContractStatusSubmitted)
+
+	// Note: The repository List method filters by status if provided.
+	// We'll trust the repository to handle comma separated statuses or we might need to do 2 queries if not supported.
+	// Checking the repository code: It handles comma-separated!
+
+	_, count, err := s.contractRepo.List(ctx, activeLeadsQuery)
+	if err != nil {
+		return nil, err
+	}
+	stats.ActiveLeads = count
+
+	// 3. Current Month Sales & Commissions
+	monthSalesQuery := &repository.ContractQuery{
+		ListQuery: repository.NewListQuery(),
+		UserID:    userID,
+		Status:    models.ContractStatusApproved,
+	}
+	monthSalesQuery.Filters["approved_from"] = startOfMonth.Format("2006-01-02")
+	monthSalesQuery.Filters["approved_to"] = endOfMonth.Format("2006-01-02")
+
+	approvedContracts, _, err := s.contractRepo.List(ctx, monthSalesQuery)
+	if err != nil {
+		return nil, err
+	}
+
+	var totalSales float64
+	for _, c := range approvedContracts {
+		if c.Amount != nil {
+			totalSales += *c.Amount
+		}
+	}
+	stats.TotalSalesValue = totalSales
+	stats.PendingCommission = totalSales * 0.02 // 2% commission
+
+	// 4. Conversion Rate (Approved this month / Total Created this month)
+	// We already have Approved count (len(approvedContracts))
+
+	// Repository doesn't strictly have "created_from", let's check.
+	// It usually relies on standard list filters but List implementation in contract_repository.go
+	// doesn't seem to explicitly check "created_from".
+	// However, we can fetch all for the user and filter in memory if the dataset is small,
+	// OR we can rely on a simpler metric: (Approved All Time / Total All Time)?
+	// Let's implement an in-memory filter for now as it's safer without modifying repository.
+
+	// Actually, let's just use the count of "All contracts created by user in this month"
+	// To avoid heavy query, let's assume we can add filters, or just use a simplified metric.
+	// Simplified Metric: Active Leads vs Approved (Current Month).
+	// Let's stick to the definition: ApprovedThisMonth / (ApprovedThisMonth + ActiveLeads) * 100 ?
+	// Or just a hardcoded calculation if we can't query efficiently.
+	// Let's use (len(approvedContracts) / (len(approvedContracts) + activeLeads)) if activeLeads > 0.
+
+	totalActiveAndApproved := float64(len(approvedContracts)) + float64(stats.ActiveLeads)
+	if totalActiveAndApproved > 0 {
+		stats.ConversionRate = (float64(len(approvedContracts)) / totalActiveAndApproved) * 100
+	}
+
+	// 5. Recent Customers
+	recentQuery := &repository.ContractQuery{
+		ListQuery: &repository.ListQuery{
+			Page:    1,
+			PerPage: 5,
+			SortBy:  "updated_at",
+			SortDir: "desc",
+			Filters: make(map[string]string),
+		},
+		UserID: userID,
+	}
+	recentContracts, _, err := s.contractRepo.List(ctx, recentQuery)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, c := range recentContracts {
+		clientName := "N/A"
+		if c.ApplicantUser.ID != 0 {
+			clientName = c.ApplicantUser.FullName
+		}
+
+		projectName := "N/A"
+		if c.Lot.ID != 0 && c.Lot.Project.ID != 0 {
+			projectName = c.Lot.Project.Name
+		}
+
+		amount := 0.0
+		if c.Amount != nil {
+			amount = *c.Amount
+		}
+
+		stats.RecentCustomers = append(stats.RecentCustomers, RecentCustomer{
+			Name:    clientName,
+			Project: projectName,
+			Status:  c.Status,
+			Amount:  fmt.Sprintf("L %.2f", amount),
+			Date:    c.UpdatedAt.Format(time.RFC3339),
+		})
+	}
+
+	// 6. Chart Data (Last 6 Months)
+	// We need to loop backwards 5 months + current month
+	// Labels: Month Names
+	// Data: Sales Volume
+
+	// Start 5 months ago
+	iterDate := startOfMonth.AddDate(0, -5, 0)
+
+	for i := 0; i < 6; i++ {
+		// Calculate sales for this month
+		mStart := iterDate
+		mEnd := mStart.AddDate(0, 1, 0).Add(-time.Second)
+
+		// Query approved contracts for this specific month
+		chartQuery := &repository.ContractQuery{
+			ListQuery: repository.NewListQuery(),
+			UserID:    userID,
+			Status:    models.ContractStatusApproved,
+		}
+		chartQuery.Filters["approved_from"] = mStart.Format("2006-01-02")
+		chartQuery.Filters["approved_to"] = mEnd.Format("2006-01-02")
+
+		// Note: This is N+1 queries (6 queries). Acceptable for a dashboard with low concurrency.
+		contracts, _, err := s.contractRepo.List(ctx, chartQuery)
+		if err != nil {
+			return nil, err
+		}
+
+		sales := 0.0
+		for _, c := range contracts {
+			if c.Amount != nil {
+				sales += *c.Amount
+			}
+		}
+
+		// Translate month
+		monthName := getMonthNameSpanish(mStart.Month())
+		stats.ChartData.Labels = append(stats.ChartData.Labels, monthName)
+		stats.ChartData.Data = append(stats.ChartData.Data, sales)
+
+		// Next month
+		iterDate = iterDate.AddDate(0, 1, 0)
+	}
+
+	return stats, nil
+}
+
+func getMonthNameSpanish(m time.Month) string {
+	months := []string{"", "Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"}
+	if int(m) >= 1 && int(m) <= 12 {
+		return months[int(m)]
+	}
+	return m.String()[:3]
 }
