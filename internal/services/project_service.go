@@ -80,7 +80,16 @@ func (s *LotService) List(ctx context.Context, projectID uint, query *repository
 }
 
 func (s *LotService) Create(ctx context.Context, lot *models.Lot) error {
-	return s.repo.Create(ctx, lot)
+	if err := s.repo.Create(ctx, lot); err != nil {
+		return err
+	}
+	// Keep project lot_count in sync
+	project, err := s.projectRepo.FindByID(ctx, lot.ProjectID)
+	if err != nil {
+		return err
+	}
+	project.LotCount++
+	return s.projectRepo.Update(ctx, project)
 }
 
 func (s *LotService) Update(ctx context.Context, lot *models.Lot) error {
@@ -136,5 +145,22 @@ func (s *LotService) Update(ctx context.Context, lot *models.Lot) error {
 }
 
 func (s *LotService) Delete(ctx context.Context, id uint) error {
-	return s.repo.Delete(ctx, id)
+	lot, err := s.repo.FindByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	projectID := lot.ProjectID
+	if err := s.repo.Delete(ctx, id); err != nil {
+		return err
+	}
+	// Keep project lot_count in sync
+	project, err := s.projectRepo.FindByID(ctx, projectID)
+	if err != nil {
+		return err
+	}
+	if project.LotCount > 0 {
+		project.LotCount--
+		return s.projectRepo.Update(ctx, project)
+	}
+	return nil
 }

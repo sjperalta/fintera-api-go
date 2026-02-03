@@ -32,20 +32,21 @@ func (Project) TableName() string {
 
 // ProjectResponse is the JSON response format for projects
 type ProjectResponse struct {
-	ID                 uint    `json:"id"`
-	Name               string  `json:"name"`
-	Description        string  `json:"description"`
-	ProjectType        string  `json:"project_type"`
-	Address            string  `json:"address"`
-	LotCount           int     `json:"lot_count"`
-	PricePerSquareUnit float64 `json:"price_per_square_unit"`
-	InterestRate       float64 `json:"interest_rate"`
-	CommissionRate     float64 `json:"commission_rate"`
-	MeasurementUnit    string  `json:"measurement_unit"`
-	DeliveryDate       *string `json:"delivery_date"`
-	AvailableLots      int     `json:"available_lots"`
-	ReservedLots       int     `json:"reserved_lots"`
-	SoldLots           int     `json:"sold_lots"`
+	ID                 uint      `json:"id"`
+	Name               string    `json:"name"`
+	Description        string    `json:"description"`
+	ProjectType        string    `json:"project_type"`
+	Address            string    `json:"address"`
+	LotCount           int       `json:"lot_count"`
+	PricePerSquareUnit float64   `json:"price_per_square_unit"`
+	InterestRate       float64   `json:"interest_rate"`
+	CommissionRate     float64   `json:"commission_rate"`
+	MeasurementUnit    string    `json:"measurement_unit"`
+	DeliveryDate       *string   `json:"delivery_date"`
+	AvailableLots      int       `json:"available_lots"`
+	ReservedLots       int       `json:"reserved_lots"`
+	SoldLots           int       `json:"sold_lots"`
+	CreatedAt          time.Time `json:"created_at"`
 }
 
 // ToResponse converts Project to ProjectResponse
@@ -77,5 +78,6 @@ func (p *Project) ToResponse() ProjectResponse {
 		AvailableLots:      available,
 		ReservedLots:       reserved,
 		SoldLots:           sold,
+		CreatedAt:          p.CreatedAt,
 	}
 }
