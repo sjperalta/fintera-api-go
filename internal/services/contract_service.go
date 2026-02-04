@@ -251,6 +251,37 @@ func (s *ContractService) Reject(ctx context.Context, id uint, reason string) (*
 	return contract, nil
 }
 
+// DeleteRejected deletes a rejected contract and releases the lot so it can be reserved again. Only allowed when status is rejected.
+func (s *ContractService) DeleteRejected(ctx context.Context, id uint) error {
+	contract, err := s.repo.FindByIDWithDetails(ctx, id)
+	if err != nil {
+		return err
+	}
+	if contract.Status != models.ContractStatusRejected {
+		return fmt.Errorf("solo se pueden eliminar contratos en estado rechazado")
+	}
+
+	// Delete all payments for this contract (rejected contracts typically have none)
+	_ = s.paymentRepo.DeleteByContract(ctx, contract.ID)
+	// Delete ledger entries (rejected contracts typically have none)
+	_ = s.ledgerRepo.DeleteByContractID(ctx, contract.ID)
+	// Delete the contract
+	if err := s.repo.Delete(ctx, contract.ID); err != nil {
+		return fmt.Errorf("failed to delete contract: %w", err)
+	}
+
+	// Release lot so it can be reserved again
+	lot, _ := s.lotRepo.FindByID(ctx, contract.LotID)
+	if lot != nil {
+		lot.Status = models.LotStatusAvailable
+		s.lotRepo.Update(ctx, lot)
+	}
+
+	s.auditSvc.Log(ctx, contract.ApplicantUserID, "DELETE", "Contract", contract.ID,
+		fmt.Sprintf("Contrato rechazado eliminado. Lote %d liberado para nueva reserva", contract.LotID), "", "")
+	return nil
+}
+
 func (s *ContractService) Cancel(ctx context.Context, id uint, note string) (*models.Contract, error) {
 	contract, err := s.repo.FindByIDWithDetails(ctx, id)
 	if err != nil {

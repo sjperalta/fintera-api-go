@@ -210,14 +210,14 @@ func setupRouter(h *handlers.Handlers, cfg *config.Config) *gin.Engine {
 			admin := protected.Group("")
 			admin.Use(middleware.RequireAdmin())
 			{
-				// User management (admin only)
+				// User management (admin only; PUT /users/:user_id is below for admin or owner)
 
-				admin.PUT("/users/:user_id", h.User.Update)
 				admin.DELETE("/users/:user_id", h.User.Delete)
 				admin.PUT("/users/:user_id/toggle_status", h.User.ToggleStatus)
 				admin.POST("/users/:user_id/restore", h.User.Restore)
 
-				// Contract approval/rejection/cancellation (admin only)
+				// Contract approval/rejection/cancellation/delete (admin only)
+				admin.DELETE("/projects/:project_id/lots/:lot_id/contracts/:contract_id", h.Contract.Delete)
 				admin.POST("/projects/:project_id/lots/:lot_id/contracts/:contract_id/approve", h.Contract.Approve)
 				admin.POST("/projects/:project_id/lots/:lot_id/contracts/:contract_id/reject", h.Contract.Reject)
 				admin.POST("/projects/:project_id/lots/:lot_id/contracts/:contract_id/cancel", h.Contract.Cancel)
@@ -310,6 +310,8 @@ func setupRouter(h *handlers.Handlers, cfg *config.Config) *gin.Engine {
 			}
 
 			// All authenticated users (personal data access)
+			// Profile update: admin or profile owner only (sellers cannot update other users' profiles)
+			protected.PUT("/users/:user_id", middleware.RequireAdminOrOwner(), h.User.Update)
 			// User can change their own password
 			protected.PATCH("/users/:user_id/change_password", h.User.ChangePassword)
 			protected.POST("/users/:user_id/resend_confirmation", h.User.ResendConfirmation)

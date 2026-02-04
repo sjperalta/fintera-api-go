@@ -3,6 +3,8 @@ package handlers
 import (
 	"net/http"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/sjperalta/fintera-api/internal/middleware"
@@ -118,11 +120,34 @@ func (h *ContractHandler) Create(c *gin.Context) {
 
 	// 3. Extract Contract Fields
 	paymentTerm, _ := strconv.Atoi(c.Request.FormValue("contract[payment_term]"))
-	financingType := c.Request.FormValue("contract[financing_type]")
+	financingType := strings.TrimSpace(strings.ToLower(c.Request.FormValue("contract[financing_type]")))
 	reserveAmount, _ := strconv.ParseFloat(c.Request.FormValue("contract[reserve_amount]"), 64)
 	downPayment, _ := strconv.ParseFloat(c.Request.FormValue("contract[down_payment]"), 64)
+	maxPaymentDateStr := strings.TrimSpace(c.Request.FormValue("contract[max_payment_date]"))
 	note := c.Request.FormValue("contract[note]")
 	applicantUserIDStr := c.Request.FormValue("contract[applicant_user_id]")
+
+	// Validate and parse max_payment_date when financing type is bank or cash
+	var maxPaymentDate *time.Time
+	if financingType == models.FinancingTypeBank || financingType == models.FinancingTypeCash {
+		if maxPaymentDateStr == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "La fecha máxima de pago es requerida para financiamiento bancario o contado"})
+			return
+		}
+		parsed, err := time.Parse("2006-01-02", maxPaymentDateStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "La fecha máxima de pago debe tener formato YYYY-MM-DD"})
+			return
+		}
+		today := time.Now().Truncate(24 * time.Hour)
+		maxDateOnly := time.Date(parsed.Year(), parsed.Month(), parsed.Day(), 0, 0, 0, 0, time.UTC)
+		todayOnly := time.Date(today.Year(), today.Month(), today.Day(), 0, 0, 0, 0, time.UTC)
+		if maxDateOnly.Before(todayOnly) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "La fecha máxima de pago no puede ser anterior a hoy"})
+			return
+		}
+		maxPaymentDate = &parsed
+	}
 
 	// 4. Handle User (Find or Create)
 	var applicantID uint
@@ -228,6 +253,7 @@ func (h *ContractHandler) Create(c *gin.Context) {
 		FinancingType:   financingType,
 		ReserveAmount:   &reserveAmount,
 		DownPayment:     &downPayment,
+		MaxPaymentDate:  maxPaymentDate,
 		Note:            &note,
 		Status:          models.ContractStatusPending,
 		Currency:        "HNL",
@@ -242,21 +268,91 @@ func (h *ContractHandler) Create(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"message": "Solicitud de contrato creada exitosamente", "contract_id": contract.ID})
 }
 
+// UpdateContractRequest is the body for PATCH contract (schedule-related fields only; allowed when status is pending/rejected/submitted)
+type UpdateContractRequest struct {
+	PaymentTerm    *int     `json:"payment_term"`
+	ReserveAmount  *float64 `json:"reserve_amount"`
+	DownPayment    *float64 `json:"down_payment"`
+	MaxPaymentDate *string  `json:"max_payment_date"` // YYYY-MM-DD; for bank/cash
+}
+
 // @Summary Update Contract
-// @Description Update a contract
+// @Description Update contract schedule fields (payment_term, reserve_amount, down_payment). Allowed only when status is pending, rejected, or submitted. Schedule is recalculated on approval.
 // @Tags Contracts
 // @Accept json
 // @Produce json
 // @Param contract_id path int true "Contract ID"
 // @Param project_id path int true "Project ID"
 // @Param lot_id path int true "Lot ID"
-// @Param request body map[string]interface{} true "Contract Data"
-// @Success 200 {object} map[string]string
+// @Param request body UpdateContractRequest true "Contract Data"
+// @Success 200 {object} models.ContractResponse
+// @Failure 400,403,404 {object} map[string]string
 // @Security BearerAuth
 // @Router /projects/{project_id}/lots/{lot_id}/contracts/{contract_id} [patch]
 func (h *ContractHandler) Update(c *gin.Context) {
-	// TODO: Implement
-	c.JSON(http.StatusOK, gin.H{"message": "Contrato actualizado"})
+	id, _ := strconv.ParseUint(c.Param("contract_id"), 10, 32)
+	contract, err := h.contractService.FindByIDWithDetails(c.Request.Context(), uint(id))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Contrato no encontrado"})
+		return
+	}
+
+	status := contract.Status
+	if status != models.ContractStatusPending && status != models.ContractStatusRejected && status != models.ContractStatusSubmitted {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Solo se pueden editar plazos, reserva y pago inicial cuando el contrato está en estado pendiente, rechazado o enviado"})
+		return
+	}
+
+	var req UpdateContractRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if req.PaymentTerm != nil {
+		if *req.PaymentTerm < 1 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "El plazo de pago debe ser al menos 1"})
+			return
+		}
+		contract.PaymentTerm = *req.PaymentTerm
+	}
+	if req.ReserveAmount != nil {
+		if *req.ReserveAmount < 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "El monto de reserva no puede ser negativo"})
+			return
+		}
+		contract.ReserveAmount = req.ReserveAmount
+	}
+	if req.DownPayment != nil {
+		if *req.DownPayment < 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "El pago inicial no puede ser negativo"})
+			return
+		}
+		contract.DownPayment = req.DownPayment
+	}
+	if req.MaxPaymentDate != nil {
+		ft := strings.ToLower(contract.FinancingType)
+		if ft == models.FinancingTypeBank || ft == models.FinancingTypeCash {
+			s := strings.TrimSpace(*req.MaxPaymentDate)
+			if s == "" {
+				contract.MaxPaymentDate = nil
+			} else {
+				parsed, err := time.Parse("2006-01-02", s)
+				if err != nil {
+					c.JSON(http.StatusBadRequest, gin.H{"error": "La fecha máxima de pago debe tener formato YYYY-MM-DD"})
+					return
+				}
+				contract.MaxPaymentDate = &parsed
+			}
+		}
+	}
+
+	if err := h.contractService.Update(c.Request.Context(), contract); err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"contract": contract.ToResponse(), "message": "Contrato actualizado"})
 }
 
 // @Summary Approve Contract
@@ -400,6 +496,35 @@ func (h *ContractHandler) CapitalRepayment(c *gin.Context) {
 		"message":  "Abono a capital aplicado exitosamente",
 		"contract": contract.ToResponse(),
 	})
+}
+
+// @Summary Delete Rejected Contract
+// @Description Delete a rejected contract and release the lot so it can be reserved again. Only allowed when contract status is rejected.
+// @Tags Contracts
+// @Accept json
+// @Produce json
+// @Param contract_id path int true "Contract ID"
+// @Param project_id path int true "Project ID"
+// @Param lot_id path int true "Lot ID"
+// @Success 200 {object} map[string]string
+// @Failure 403,404 {object} map[string]string
+// @Security BearerAuth
+// @Router /projects/{project_id}/lots/{lot_id}/contracts/{contract_id} [delete]
+func (h *ContractHandler) Delete(c *gin.Context) {
+	id, _ := strconv.ParseUint(c.Param("contract_id"), 10, 32)
+	if err := h.contractService.DeleteRejected(c.Request.Context(), uint(id)); err != nil {
+		if err.Error() == "record not found" || strings.Contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Contrato no encontrado"})
+			return
+		}
+		if strings.Contains(err.Error(), "rechazado") {
+			c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Contrato eliminado. El lote está disponible para nueva reserva"})
 }
 
 // @Summary Get Contract Ledger

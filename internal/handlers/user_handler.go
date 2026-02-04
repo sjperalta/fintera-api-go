@@ -179,7 +179,7 @@ func (h *UserHandler) Create(c *gin.Context) {
 }
 
 // @Summary Update User
-// @Description Update user details
+// @Description Update user details (admin: any field; owner: full_name, phone, address, locale, identity, rtn only)
 // @Tags Users
 // @Accept json
 // @Produce json
@@ -203,6 +203,8 @@ func (h *UserHandler) Update(c *gin.Context) {
 		return
 	}
 
+	isAdmin := middleware.IsAdmin(c)
+
 	if v, ok := req["full_name"].(string); ok {
 		user.FullName = v
 	}
@@ -214,6 +216,25 @@ func (h *UserHandler) Update(c *gin.Context) {
 	}
 	if v, ok := req["locale"].(string); ok {
 		user.Locale = v
+	}
+	if v, ok := req["identity"].(string); ok {
+		user.Identity = v
+	}
+	if v, ok := req["rtn"].(string); ok {
+		user.RTN = v
+	}
+
+	// Only admin may change role, status, or email
+	if isAdmin {
+		if v, ok := req["role"].(string); ok {
+			user.Role = v
+		}
+		if v, ok := req["status"].(string); ok {
+			user.Status = v
+		}
+		if v, ok := req["email"].(string); ok {
+			user.Email = v
+		}
 	}
 
 	if err := h.userService.Update(c.Request.Context(), user); err != nil {

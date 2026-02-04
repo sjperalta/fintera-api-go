@@ -17,6 +17,7 @@ type Contract struct {
 	Balance         *float64   `gorm:"type:decimal" json:"balance"`
 	DownPayment     *float64   `gorm:"type:decimal" json:"down_payment"`
 	ReserveAmount   *float64   `gorm:"type:decimal" json:"reserve_amount"`
+	MaxPaymentDate  *time.Time `gorm:"type:date" json:"max_payment_date"` // for bank/cash: date by which customer will pay the rest
 	Currency        string     `gorm:"default:HNL;not null" json:"currency"`
 	ApprovedAt      *time.Time `gorm:"index" json:"approved_at"`
 	Active          bool       `gorm:"default:false;index" json:"active"`
@@ -132,6 +133,7 @@ type ContractResponse struct {
 	FinancingType          string                        `json:"financing_type"`
 	ReserveAmount          *float64                      `json:"reserve_amount"`
 	DownPayment            *float64                      `json:"down_payment"`
+	MaxPaymentDate         *time.Time                    `json:"max_payment_date"`
 	Status                 string                        `json:"status"`
 	Balance                float64                       `json:"balance"`
 	RejectionReason        *string                       `json:"rejection_reason"`
@@ -158,6 +160,7 @@ func (c *Contract) ToResponse() ContractResponse {
 		Amount:            c.Amount,
 		ReserveAmount:     c.ReserveAmount,
 		DownPayment:       c.DownPayment,
+		MaxPaymentDate:    c.MaxPaymentDate,
 		Status:            c.Status,
 		RejectionReason:   c.RejectionReason,
 		CancellationNotes: c.Note,

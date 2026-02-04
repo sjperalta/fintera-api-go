@@ -179,3 +179,29 @@ func RequireAdminSellerOrOwner() gin.HandlerFunc {
 		})
 	}
 }
+
+// RequireAdminOrOwner returns a middleware that requires admin role OR the resource owner (user_id param matches current user).
+// Used for routes where only admin or the profile owner may act (e.g. update own profile), not sellers acting on other users.
+func RequireAdminOrOwner() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if IsAdmin(c) {
+			c.Next()
+			return
+		}
+		currentUserID := GetUserID(c)
+		idParam := c.Param("user_id")
+		if idParam == "" {
+			idParam = c.Param("id")
+		}
+		if idParam != "" {
+			targetID, err := strconv.ParseUint(idParam, 10, 32)
+			if err == nil && uint(targetID) == currentUserID {
+				c.Next()
+				return
+			}
+		}
+		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+			"error": "No tienes acceso a esta sección",
+		})
+	}
+}
