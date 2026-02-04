@@ -9,6 +9,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/getsentry/sentry-go"
+	sentrygin "github.com/getsentry/sentry-go/gin"
 	_ "github.com/joho/godotenv/autoload"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
@@ -54,6 +56,26 @@ func main() {
 
 	// Initialize logger
 	logger.Setup(cfg.Environment)
+
+	// Initialize Sentry (GlitchTip) when DSN is configured
+	if cfg.SentryDSN != "" {
+		if err := sentry.Init(sentry.ClientOptions{
+			Dsn: cfg.SentryDSN,
+			// Set TracesSampleRate to 1.0 to capture 100% of transactions for performance monitoring.
+			// Set to a lower value (e.g. 0.2) in production if needed.
+			TracesSampleRate: 0.2,
+			Environment:      cfg.Environment,
+		}); err != nil {
+			logger.Error("Sentry initialization failed", "error", err)
+		} else {
+			logger.Info("Sentry initialized")
+		}
+	}
+
+	// Warn if Resend email is not configured (API loads .env, not .production.env)
+	if cfg.ResendAPIKey == "" || cfg.FromEmail == "" {
+		logger.Warn("Resend email disabled: RESEND_API_KEY or FROM_EMAIL not set. Set them in .env and ensure the From domain is verified in Resend dashboard.")
+	}
 
 	// Set Gin mode
 	if cfg.Environment == "production" {
@@ -134,6 +156,11 @@ func main() {
 	worker.Shutdown()
 	logger.Info("Background worker stopped")
 
+	// Flush Sentry events before exit
+	if cfg.SentryDSN != "" {
+		sentry.Flush(5 * time.Second)
+	}
+
 	logger.Info("Server exited gracefully")
 }
 
@@ -141,6 +168,9 @@ func setupRouter(h *handlers.Handlers, cfg *config.Config) *gin.Engine {
 	router := gin.New()
 
 	// Global middleware
+	if cfg.SentryDSN != "" {
+		router.Use(sentrygin.New(sentrygin.Options{Repanic: true}))
+	}
 	router.Use(gin.Recovery())
 	router.Use(middleware.RequestLogger())
 	router.Use(middleware.CORS(cfg.AllowedOrigins))
@@ -295,13 +325,14 @@ func setupRouter(h *handlers.Handlers, cfg *config.Config) *gin.Engine {
 			protected.GET("/payments/:payment_id/download_receipt", h.Payment.DownloadReceipt)
 
 			// Notifications (users can manage their own notifications)
+			// Static route first so "mark_all_as_read" is not matched as :notification_id
 			notifications := protected.Group("/notifications")
 			{
 				notifications.GET("", h.Notification.Index)
-				notifications.GET("/:notification_id", h.Notification.Show)
-				notifications.PUT("/:notification_id", h.Notification.Update)
-				notifications.DELETE("/:notification_id", h.Notification.Delete)
 				notifications.POST("/mark_all_as_read", h.Notification.MarkAllAsRead)
+				notifications.POST("/:notification_id/mark_as_read", h.Notification.MarkAsRead)
+				notifications.GET("/:notification_id", h.Notification.Show)
+				notifications.DELETE("/:notification_id", h.Notification.Delete)
 			}
 		}
 	}

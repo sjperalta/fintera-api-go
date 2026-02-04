@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"strings"
+	"time"
 
 	"github.com/sjperalta/fintera-api/internal/models"
 	"gorm.io/gorm"
@@ -111,9 +112,22 @@ func (r *contractRepository) List(ctx context.Context, query *ContractQuery) ([]
 		db = db.Where("creator_id = ?", query.UserID)
 	}
 
-	// Apply status filter
-	if query.Status != "" {
-		db = db.Where("contracts.status = ?", query.Status)
+	// Apply status filter (single or multiple via status_in)
+	if query.Filters != nil {
+		if val, ok := query.Filters["status_in"]; ok && val != "" {
+			statuses := strings.Split(val, ",")
+			for i, s := range statuses {
+				statuses[i] = strings.TrimSpace(s)
+			}
+			if len(statuses) > 0 {
+				db = db.Where("contracts.status IN ?", statuses)
+			}
+		}
+	}
+	if query.Filters == nil || query.Filters["status_in"] == "" {
+		if query.Status != "" {
+			db = db.Where("contracts.status = ?", query.Status)
+		}
 	}
 
 	// Apply lot filter
@@ -644,6 +658,15 @@ func (r *notificationRepository) FindByUser(ctx context.Context, userID uint, qu
 
 	db := r.db.WithContext(ctx).Model(&models.Notification{}).Where("user_id = ?", userID)
 
+	if status, ok := query.Filters["status"]; ok && status != "" {
+		switch strings.ToLower(status) {
+		case "unread":
+			db = db.Where("read_at IS NULL")
+		case "read":
+			db = db.Where("read_at IS NOT NULL")
+		}
+	}
+
 	db.Count(&total)
 	db = db.Order("created_at DESC")
 
@@ -668,10 +691,11 @@ func (r *notificationRepository) Delete(ctx context.Context, id uint) error {
 }
 
 func (r *notificationRepository) MarkAllAsRead(ctx context.Context, userID uint) error {
+	now := time.Now()
 	return r.db.WithContext(ctx).
 		Model(&models.Notification{}).
 		Where("user_id = ? AND read_at IS NULL", userID).
-		Update("read_at", gorm.Expr("NOW()")).Error
+		Update("read_at", now).Error
 }
 
 func (r *notificationRepository) CountUnread(ctx context.Context, userID uint) (int64, error) {

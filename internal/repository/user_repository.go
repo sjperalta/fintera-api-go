@@ -45,7 +45,7 @@ func (r *userRepository) FindByID(ctx context.Context, id uint) (*models.User, e
 func (r *userRepository) FindByEmail(ctx context.Context, email string) (*models.User, error) {
 	var user models.User
 	err := r.db.WithContext(ctx).
-		Where("email = ? AND discarded_at IS NULL", email).
+		Where("LOWER(email) = LOWER(?) AND discarded_at IS NULL", email).
 		First(&user).Error
 	if err != nil {
 		return nil, err
@@ -111,6 +111,11 @@ func (r *userRepository) List(ctx context.Context, query *ListQuery) ([]models.U
 	// Apply status filter
 	if query.Filters["status"] != "" {
 		db = db.Where("status = ?", query.Filters["status"])
+	}
+
+	// Filter by creator (e.g. users created by a specific seller)
+	if query.Filters["created_by"] != "" {
+		db = db.Where("created_by = ?", query.Filters["created_by"])
 	}
 
 	// Count total

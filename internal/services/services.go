@@ -34,7 +34,7 @@ func NewServices(repos *repository.Repositories, worker *jobs.Worker, storage *s
 	return &Services{
 		Auth:         NewAuthService(repos.User, repos.RefreshToken, cfg),
 		User:         NewUserService(repos.User, worker, emailSvc),
-		Project:      NewProjectService(repos.Project),
+		Project:      NewProjectService(repos.Project, repos.Lot),
 		Lot:          NewLotService(repos.Lot, repos.Project),
 		Contract:     NewContractService(repos.Contract, repos.Lot, repos.User, repos.Payment, repos.Ledger, notificationSvc, emailSvc, auditSvc, worker),
 		Payment:      NewPaymentService(repos.Payment, repos.Contract, repos.Lot, repos.Ledger, notificationSvc, auditSvc, storage, worker),
