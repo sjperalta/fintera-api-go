@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -798,6 +799,8 @@ func NewAuditHandler(auditService *services.AuditService) *AuditHandler {
 // @Produce json
 // @Param page query int false "Page number" default(1)
 // @Param per_page query int false "Items per page" default(50)
+// @Param model query string false "Filter by entity (Contract, User, Payment, etc.)"
+// @Param search_term query string false "Search by user name, email, action, entity, or details"
 // @Success 200 {object} map[string]interface{}
 // @Security BearerAuth
 // @Router /audits [get]
@@ -806,8 +809,9 @@ func (h *AuditHandler) Index(c *gin.Context) {
 	perPage, _ := strconv.Atoi(c.DefaultQuery("per_page", "50"))
 	offset := (page - 1) * perPage
 	entity := c.Query("model")
+	searchTerm := strings.TrimSpace(c.Query("search_term"))
 
-	logs, total, err := h.auditService.List(c.Request.Context(), perPage, offset, entity)
+	logs, total, err := h.auditService.List(c.Request.Context(), perPage, offset, entity, searchTerm)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

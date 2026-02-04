@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"strings"
 	"time"
 
 	"github.com/sjperalta/fintera-api/internal/models"
@@ -31,6 +32,41 @@ func (s *PaymentScheduleService) GenerateSchedule(ctx context.Context, contract 
 
 	var payments []models.Payment
 	now := time.Now()
+	ft := strings.ToLower(strings.TrimSpace(contract.FinancingType))
+
+	// Bank/Cash: schedule = 1) reservation, 2) rest of amount due by max_payment_date
+	if ft == models.FinancingTypeBank || ft == models.FinancingTypeCash {
+		if contract.MaxPaymentDate == nil {
+			return nil, fmt.Errorf("max_payment_date is required for bank or cash financing")
+		}
+		dueMax := time.Date(contract.MaxPaymentDate.Year(), contract.MaxPaymentDate.Month(), contract.MaxPaymentDate.Day(), 0, 0, 0, 0, time.UTC)
+		// 1. Reservation payment
+		if *contract.ReserveAmount > 0 {
+			reservationPayment := models.Payment{
+				ContractID:  contract.ID,
+				Amount:      *contract.ReserveAmount,
+				DueDate:     now.AddDate(0, 0, 7),
+				Status:      models.PaymentStatusPending,
+				PaymentType: models.PaymentTypeReservation,
+				Description: stringPtr("Pago de Reserva"),
+			}
+			payments = append(payments, reservationPayment)
+		}
+		// 2. Rest of amount due by max_payment_date
+		remainingAmount := *contract.Amount - *contract.ReserveAmount
+		if remainingAmount > 0 {
+			balancePayment := models.Payment{
+				ContractID:  contract.ID,
+				Amount:      remainingAmount,
+				DueDate:     dueMax,
+				Status:      models.PaymentStatusPending,
+				PaymentType: models.PaymentTypeFull,
+				Description: stringPtr("Saldo restante"),
+			}
+			payments = append(payments, balancePayment)
+		}
+		return payments, nil
+	}
 
 	// 1. Reservation payment (if reserve amount > 0)
 	if *contract.ReserveAmount > 0 {
