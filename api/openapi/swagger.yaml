@@ -1019,30 +1019,6 @@ paths:
       summary: Get Notification
       tags:
       - Notifications
-    put:
-      consumes:
-      - application/json
-      description: Mark a notification as read
-      parameters:
-      - description: Notification ID
-        in: path
-        name: notification_id
-        required: true
-        type: integer
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      security:
-      - BearerAuth: []
-      summary: Mark Notification Read
-      tags:
-      - Notifications
   /notifications/mark_all_as_read:
     post:
       consumes:

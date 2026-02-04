@@ -10,11 +10,12 @@ import (
 )
 
 type ProjectService struct {
-	repo repository.ProjectRepository
+	repo     repository.ProjectRepository
+	lotRepo  repository.LotRepository
 }
 
-func NewProjectService(repo repository.ProjectRepository) *ProjectService {
-	return &ProjectService{repo: repo}
+func NewProjectService(repo repository.ProjectRepository, lotRepo repository.LotRepository) *ProjectService {
+	return &ProjectService{repo: repo, lotRepo: lotRepo}
 }
 
 func (s *ProjectService) FindByID(ctx context.Context, id uint) (*models.Project, error) {
@@ -51,6 +52,40 @@ func (s *ProjectService) Create(ctx context.Context, project *models.Project) er
 }
 
 func (s *ProjectService) Update(ctx context.Context, project *models.Project) error {
+	existing, err := s.repo.FindByID(ctx, project.ID)
+	if err != nil {
+		return err
+	}
+
+	// Check if any of these fields changed: Unidad de Medida, Precio por Unidad, Tasa de Interés, Tasa de Comisión
+	measurementUnitChanged := existing.MeasurementUnit != project.MeasurementUnit
+	pricePerUnitChanged := existing.PricePerSquareUnit != project.PricePerSquareUnit
+	interestRateChanged := existing.InterestRate != project.InterestRate
+	commissionRateChanged := existing.CommissionRate != project.CommissionRate
+	rateFieldsChanged := measurementUnitChanged || pricePerUnitChanged || interestRateChanged || commissionRateChanged
+
+	if rateFieldsChanged {
+		lots, err := s.lotRepo.FindByProject(ctx, project.ID)
+		if err != nil {
+			return err
+		}
+		mu := project.MeasurementUnit
+		for i := range lots {
+			if lots[i].Status != models.LotStatusAvailable {
+				continue
+			}
+			if measurementUnitChanged {
+				lots[i].MeasurementUnit = &mu
+			}
+			if pricePerUnitChanged && (lots[i].OverridePrice == nil || *lots[i].OverridePrice == 0) {
+				lots[i].Price = lots[i].Area() * project.PricePerSquareUnit
+			}
+			if err := s.lotRepo.Update(ctx, &lots[i]); err != nil {
+				return err
+			}
+		}
+	}
+
 	return s.repo.Update(ctx, project)
 }
 

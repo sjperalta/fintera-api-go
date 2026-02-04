@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/sjperalta/fintera-api/internal/middleware"
@@ -42,7 +43,22 @@ func (h *UserHandler) Index(c *gin.Context) {
 	query.Page, _ = strconv.Atoi(c.DefaultQuery("page", "1"))
 	query.PerPage, _ = strconv.Atoi(c.DefaultQuery("per_page", "20"))
 	query.Search = c.Query("search_term")
-	query.Filters["role"] = c.Query("role")
+
+	// Sellers only see users with role "user" (clients/leads)
+	currentRole := strings.ToLower(middleware.GetUserRole(c))
+	if currentRole == "seller" {
+		query.Filters["role"] = "user"
+	} else {
+		query.Filters["role"] = c.Query("role")
+	}
+
+	// When my_clients=1 (e.g. from "Ver todos los clientes"), filter to users created by current user
+	if c.Query("my_clients") == "1" {
+		currentUserID := middleware.GetUserID(c)
+		if currentUserID > 0 {
+			query.Filters["created_by"] = strconv.FormatUint(uint64(currentUserID), 10)
+		}
+	}
 
 	status := c.Query("status")
 	if status == "" {

@@ -414,12 +414,13 @@ func NewNotificationHandler(notificationService *services.NotificationService) *
 }
 
 // @Summary List Notifications
-// @Description Get a paginated list of notifications for the current user
+// @Description Get a paginated list of notifications for the current user. Filter by status=unread or status=read.
 // @Tags Notifications
 // @Accept json
 // @Produce json
 // @Param page query int false "Page number" default(1)
 // @Param per_page query int false "Items per page" default(20)
+// @Param status query string false "Filter by status: unread, read"
 // @Success 200 {object} map[string]interface{}
 // @Security BearerAuth
 // @Router /notifications [get]
@@ -428,6 +429,9 @@ func (h *NotificationHandler) Index(c *gin.Context) {
 	query := repository.NewListQuery()
 	query.Page, _ = strconv.Atoi(c.DefaultQuery("page", "1"))
 	query.PerPage, _ = strconv.Atoi(c.DefaultQuery("per_page", "20"))
+	if status := c.Query("status"); status != "" {
+		query.Filters["status"] = status
+	}
 
 	notifications, total, err := h.notificationService.FindByUser(c.Request.Context(), userID, query)
 	if err != nil {
@@ -463,19 +467,20 @@ func (h *NotificationHandler) Show(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"notification": notification.ToResponse()})
 }
 
-// @Summary Mark Notification Read
-// @Description Mark a notification as read
+// @Summary Mark Notification Read (POST)
+// @Description Mark a notification as read (POST /notifications/:id/mark_as_read)
 // @Tags Notifications
 // @Accept json
 // @Produce json
 // @Param notification_id path int true "Notification ID"
 // @Success 200 {object} map[string]string
+// @Failure 404 {object} map[string]string
 // @Security BearerAuth
-// @Router /notifications/{notification_id} [put]
-func (h *NotificationHandler) Update(c *gin.Context) {
+// @Router /notifications/{notification_id}/mark_as_read [post]
+func (h *NotificationHandler) MarkAsRead(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("notification_id"), 10, 32)
 	if err := h.notificationService.MarkAsRead(c.Request.Context(), uint(id)); err != nil {
-		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Notificación no encontrada"})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "Notificación marcada como leída"})
@@ -509,6 +514,10 @@ func (h *NotificationHandler) Delete(c *gin.Context) {
 // @Router /notifications/mark_all_as_read [post]
 func (h *NotificationHandler) MarkAllAsRead(c *gin.Context) {
 	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
 	if err := h.notificationService.MarkAllAsRead(c.Request.Context(), userID); err != nil {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
 		return
@@ -535,8 +544,11 @@ func NewReportHandler(reportService *services.ReportService) *ReportHandler {
 func (h *ReportHandler) CommissionsCSV(c *gin.Context) {
 	startDate := c.Query("start_date")
 	endDate := c.Query("end_date")
+	userID := middleware.GetUserID(c)
+	role := middleware.GetUserRole(c)
+	filterByCreator := role != "admin"
 
-	buf, err := h.reportService.GenerateCommissionsCSV(c.Request.Context(), startDate, endDate)
+	buf, err := h.reportService.GenerateCommissionsCSV(c.Request.Context(), startDate, endDate, userID, filterByCreator)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -559,8 +571,11 @@ func (h *ReportHandler) CommissionsCSV(c *gin.Context) {
 func (h *ReportHandler) Commissions(c *gin.Context) {
 	startDate := c.Query("start_date")
 	endDate := c.Query("end_date")
+	userID := middleware.GetUserID(c)
+	role := middleware.GetUserRole(c)
+	filterByCreator := role != "admin"
 
-	items, err := h.reportService.GenerateCommissions(c.Request.Context(), startDate, endDate)
+	items, err := h.reportService.GenerateCommissions(c.Request.Context(), startDate, endDate, userID, filterByCreator)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

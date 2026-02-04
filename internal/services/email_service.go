@@ -37,7 +37,22 @@ func getStringValue(s *string) string {
 	return *s
 }
 
+// ensureEmailConfigured returns an error if Resend is not configured, so callers
+// get a clear message instead of a Resend API error (e.g. 401).
+func (s *EmailService) ensureEmailConfigured() error {
+	if s.config.ResendAPIKey == "" {
+		return fmt.Errorf("email not configured: RESEND_API_KEY is not set (API loads .env)")
+	}
+	if s.config.FromEmail == "" {
+		return fmt.Errorf("email not configured: FROM_EMAIL is not set")
+	}
+	return nil
+}
+
 func (s *EmailService) SendRecoveryCode(ctx context.Context, user *models.User, code string) error {
+	if err := s.ensureEmailConfigured(); err != nil {
+		return err
+	}
 	data := struct {
 		Name    string
 		Code    string
@@ -73,6 +88,9 @@ func (s *EmailService) SendRecoveryCode(ctx context.Context, user *models.User, 
 }
 
 func (s *EmailService) SendAccountCreated(ctx context.Context, user *models.User) error {
+	if err := s.ensureEmailConfigured(); err != nil {
+		return err
+	}
 	data := struct {
 		Name   string
 		AppURL string
@@ -103,6 +121,9 @@ func (s *EmailService) SendAccountCreated(ctx context.Context, user *models.User
 }
 
 func (s *EmailService) SendContractSubmitted(ctx context.Context, contract *models.Contract) error {
+	if err := s.ensureEmailConfigured(); err != nil {
+		return err
+	}
 	reserveAmount := 0.0
 	if contract.ReserveAmount != nil {
 		reserveAmount = *contract.ReserveAmount
@@ -158,6 +179,9 @@ func (s *EmailService) SendContractSubmitted(ctx context.Context, contract *mode
 }
 
 func (s *EmailService) SendContractApproved(ctx context.Context, contract *models.Contract, monthlyPayment float64, firstPaymentDate string) error {
+	if err := s.ensureEmailConfigured(); err != nil {
+		return err
+	}
 	downPayment := 0.0
 	if contract.DownPayment != nil {
 		downPayment = *contract.DownPayment
@@ -209,6 +233,9 @@ func (s *EmailService) SendContractApproved(ctx context.Context, contract *model
 }
 
 func (s *EmailService) SendPaymentApproved(ctx context.Context, payment *models.Payment) error {
+	if err := s.ensureEmailConfigured(); err != nil {
+		return err
+	}
 	interest := 0.0
 	if payment.InterestAmount != nil {
 		interest = *payment.InterestAmount
@@ -264,6 +291,9 @@ type OverduePaymentData struct {
 }
 
 func (s *EmailService) SendOverduePayments(ctx context.Context, user *models.User, payments []models.Payment) error {
+	if err := s.ensureEmailConfigured(); err != nil {
+		return err
+	}
 	var paymentData []OverduePaymentData
 	for _, p := range payments {
 		paymentData = append(paymentData, OverduePaymentData{
@@ -305,6 +335,9 @@ func (s *EmailService) SendOverduePayments(ctx context.Context, user *models.Use
 }
 
 func (s *EmailService) SendReservationApproved(ctx context.Context, contract *models.Contract) error {
+	if err := s.ensureEmailConfigured(); err != nil {
+		return err
+	}
 	reserveAmount := 0.0
 	if contract.ReserveAmount != nil {
 		reserveAmount = *contract.ReserveAmount
