@@ -329,12 +329,16 @@ func (r *paymentRepository) List(ctx context.Context, query *ListQuery) ([]model
 		db = db.Where("payments.payment_date <= ? OR (payments.payment_date IS NULL AND payments.due_date <= ?)", endDate, endDate)
 	}
 
-	// Apply search filter if provided
+	// Apply search filter if provided (case-insensitive across multiple fields)
 	if search := query.Filters["search_term"]; search != "" {
-		// Join with contracts and users to search by applicant name
+		term := "%" + search + "%"
 		db = db.Joins("JOIN contracts ON contracts.id = payments.contract_id").
 			Joins("JOIN users ON users.id = contracts.applicant_user_id").
-			Where("(users.full_name LIKE ? OR payments.description LIKE ?)", "%"+search+"%", "%"+search+"%")
+			Joins("JOIN lots ON lots.id = contracts.lot_id").
+			Joins("JOIN projects ON projects.id = lots.project_id").
+			Where("(users.full_name ILIKE ? OR users.email ILIKE ? OR users.phone ILIKE ? OR users.identity ILIKE ? OR "+
+				"COALESCE(payments.description, '') ILIKE ? OR lots.name ILIKE ? OR COALESCE(lots.address, '') ILIKE ? OR "+
+				"projects.name ILIKE ? OR projects.address ILIKE ?)", term, term, term, term, term, term, term, term, term)
 	}
 
 	// Clone the database session for count to avoid affecting the main query

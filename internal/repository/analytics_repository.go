@@ -21,7 +21,7 @@ type AnalyticsRepository interface {
 	GetTotalRevenue(ctx context.Context, projectID *uint, startDate, endDate *time.Time) (float64, error)
 	GetActiveContractsCount(ctx context.Context, projectID *uint, startDate, endDate *time.Time) (int, error)
 	GetAveragePayment(ctx context.Context, projectID *uint, startDate, endDate *time.Time) (float64, error)
-	GetOccupancyRate(ctx context.Context, projectID *uint) (float64, error)
+	GetOccupancyRate(ctx context.Context, projectID *uint, endDate *time.Time) (float64, error)
 	GetRevenueTrend(ctx context.Context, projectID *uint, timeframe string, year *int) ([]models.RevenueTrendPoint, error)
 	GetLotDistribution(ctx context.Context, projectID *uint) (*models.LotDistribution, error)
 	GetProjectPerformance(ctx context.Context, projectID *uint, startDate, endDate *time.Time, year *int, revenueTimeframe string) ([]models.ProjectPerformance, error)
@@ -172,7 +172,7 @@ func (r *analyticsRepository) GetAveragePayment(ctx context.Context, projectID *
 	return avg, err
 }
 
-func (r *analyticsRepository) GetOccupancyRate(ctx context.Context, projectID *uint) (float64, error) {
+func (r *analyticsRepository) GetOccupancyRate(ctx context.Context, projectID *uint, endDate *time.Time) (float64, error) {
 	var total, occupied int64
 
 	lotQuery := r.db.WithContext(ctx).Model(&models.Lot{})
@@ -180,14 +180,30 @@ func (r *analyticsRepository) GetOccupancyRate(ctx context.Context, projectID *u
 		lotQuery = lotQuery.Where("project_id = ?", *projectID)
 	}
 
-	err := lotQuery.Count(&total).Error
-	if err != nil || total == 0 {
+	if err := lotQuery.Count(&total).Error; err != nil || total == 0 {
 		return 0, err
 	}
 
-	err = lotQuery.Where("lots.status IN ?", []string{models.LotStatusReserved, models.LotStatusFinanced, models.LotStatusFullyPaid}).Count(&occupied).Error
-	if err != nil {
-		return 0, err
+	if endDate != nil {
+		// Occupancy as of endDate: count distinct lots that had an approved contract not yet closed by endDate
+		subq := r.db.WithContext(ctx).Model(&models.Contract{}).
+			Select("DISTINCT contracts.lot_id").
+			Joins("INNER JOIN lots ON lots.id = contracts.lot_id").
+			Where("contracts.status IN ?", []string{models.ContractStatusApproved, models.ContractStatusClosed}).
+			Where("contracts.approved_at IS NOT NULL AND contracts.approved_at <= ?", *endDate).
+			Where("(contracts.closed_at IS NULL OR contracts.closed_at > ?)", *endDate)
+		if projectID != nil {
+			subq = subq.Where("lots.project_id = ?", *projectID)
+		}
+		if err := r.db.WithContext(ctx).Table("(?) AS occupied_lots", subq).Count(&occupied).Error; err != nil {
+			return 0, err
+		}
+	} else {
+		// Current snapshot: lots whose status is reserved/financed/fully_paid
+		err := lotQuery.Where("lots.status IN ?", []string{models.LotStatusReserved, models.LotStatusFinanced, models.LotStatusFullyPaid}).Count(&occupied).Error
+		if err != nil {
+			return 0, err
+		}
 	}
 
 	return (float64(occupied) / float64(total)) * 100, nil

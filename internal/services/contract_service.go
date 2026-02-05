@@ -138,8 +138,20 @@ func (s *ContractService) GetUserByIdentity(ctx context.Context, identity string
 }
 
 func (s *ContractService) CreateUser(ctx context.Context, user *models.User, password string) error {
-	// TODO: Handle password hashing before creating user or update repository to handle password
-	return s.userRepo.Create(ctx, user)
+	hashedPassword, err := HashPassword(password)
+	if err != nil {
+		return fmt.Errorf("failed to hash password: %w", err)
+	}
+	user.EncryptedPassword = hashedPassword
+	user.MustChangePassword = true
+	if err := s.userRepo.Create(ctx, user); err != nil {
+		return err
+	}
+	// Send welcome email with temp password (best-effort)
+	if err := s.emailSvc.SendAccountCreated(ctx, user, password); err != nil {
+		_ = err // Logged inside SendAccountCreated
+	}
+	return nil
 }
 
 // Approve approves a contract

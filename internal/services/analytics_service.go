@@ -40,18 +40,27 @@ type AnalyticsFilters struct {
 	Year             *int
 }
 
+// HasDateFilter returns true when any date or year filter is set (e.g. from the analytics page).
+// When true, cache is bypassed so filtered results are always fresh. Dashboard/seller calls
+// without these params continue to use cache.
+func (f AnalyticsFilters) HasDateFilter() bool {
+	return f.StartDate != nil || f.EndDate != nil || f.Year != nil
+}
+
 func (s *AnalyticsService) GetOverview(ctx context.Context, filters AnalyticsFilters) (*models.AnalyticsOverview, error) {
 	cacheKey := "analytics_overview"
 	if filters.RevenueTimeframe != "" {
 		cacheKey += "_" + filters.RevenueTimeframe
 	}
 
-	// Check cache
-	cached, err := s.analyticsRepo.GetCache(ctx, cacheKey, filters.ProjectID)
-	if err == nil && cached != nil {
-		var overview models.AnalyticsOverview
-		if err := json.Unmarshal(cached.Data, &overview); err == nil {
-			return &overview, nil
+	// Bypass cache when date/year filters are present so the analytics page filters work correctly.
+	if !filters.HasDateFilter() {
+		cached, err := s.analyticsRepo.GetCache(ctx, cacheKey, filters.ProjectID)
+		if err == nil && cached != nil {
+			var overview models.AnalyticsOverview
+			if err := json.Unmarshal(cached.Data, &overview); err == nil {
+				return &overview, nil
+			}
 		}
 	}
 
@@ -61,8 +70,10 @@ func (s *AnalyticsService) GetOverview(ctx context.Context, filters AnalyticsFil
 		return nil, err
 	}
 
-	// Set cache (15 min TTL)
-	_ = s.analyticsRepo.SetCache(ctx, cacheKey, filters.ProjectID, overview, 15*time.Minute)
+	// Set cache only when no date filter (dashboard-style requests)
+	if !filters.HasDateFilter() {
+		_ = s.analyticsRepo.SetCache(ctx, cacheKey, filters.ProjectID, overview, 15*time.Minute)
+	}
 
 	return overview, nil
 }
@@ -120,7 +131,7 @@ func (s *AnalyticsService) computeOverview(ctx context.Context, filters Analytic
 		return nil, err
 	}
 
-	occupancyRate, err := s.analyticsRepo.GetOccupancyRate(ctx, filters.ProjectID)
+	occupancyRate, err := s.analyticsRepo.GetOccupancyRate(ctx, filters.ProjectID, filters.EndDate)
 	if err != nil {
 		return nil, err
 	}
@@ -148,9 +159,13 @@ func (s *AnalyticsService) computeOverview(ctx context.Context, filters Analytic
 		prevAvgPayment = 0
 	}
 
-	// Note: Occupancy rate is not time-based, so we compare against a baseline
-	// For now, we'll use 0 as previous to show absolute percentage
+	// Previous period occupancy (as of prevEnd when date range is set; otherwise 0 for comparison)
 	prevOccupancy := 0.0
+	if filters.EndDate != nil && prevEnd != nil {
+		if rate, err := s.analyticsRepo.GetOccupancyRate(ctx, filters.ProjectID, prevEnd); err == nil {
+			prevOccupancy = rate
+		}
+	}
 
 	// Calculate percentage changes
 	revenueChange := calculatePercentageChange(totalRevenue, prevRevenue)
@@ -204,12 +219,14 @@ func (s *AnalyticsService) GetPerformance(ctx context.Context, filters Analytics
 		cacheKey += fmt.Sprintf("_project_%d", *filters.ProjectID)
 	}
 
-	// Check cache
-	cached, err := s.analyticsRepo.GetCache(ctx, cacheKey, filters.ProjectID)
-	if err == nil && cached != nil {
-		var perf []models.ProjectPerformance
-		if err := json.Unmarshal(cached.Data, &perf); err == nil {
-			return perf, nil
+	// Bypass cache when date/year filters are present so the analytics page filters work correctly.
+	if !filters.HasDateFilter() {
+		cached, err := s.analyticsRepo.GetCache(ctx, cacheKey, filters.ProjectID)
+		if err == nil && cached != nil {
+			var perf []models.ProjectPerformance
+			if err := json.Unmarshal(cached.Data, &perf); err == nil {
+				return perf, nil
+			}
 		}
 	}
 
@@ -218,8 +235,9 @@ func (s *AnalyticsService) GetPerformance(ctx context.Context, filters Analytics
 		return nil, err
 	}
 
-	// Set cache (30 min TTL)
-	_ = s.analyticsRepo.SetCache(ctx, cacheKey, filters.ProjectID, perf, 30*time.Minute)
+	if !filters.HasDateFilter() {
+		_ = s.analyticsRepo.SetCache(ctx, cacheKey, filters.ProjectID, perf, 30*time.Minute)
+	}
 
 	return perf, nil
 }

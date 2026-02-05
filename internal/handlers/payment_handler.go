@@ -353,7 +353,23 @@ func (h *PaymentHandler) DownloadReceipt(c *gin.Context) {
 // @Security BearerAuth
 // @Router /payments/{payment_id}/undo [post]
 func (h *PaymentHandler) Undo(c *gin.Context) {
-	// TODO: Implement
+	id, err := strconv.ParseUint(c.Param("payment_id"), 10, 32)
+	if err != nil || id == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID de pago inválido"})
+		return
+	}
+	if err := h.paymentService.UndoPayment(c.Request.Context(), uint(id)); err != nil {
+		if strings.Contains(err.Error(), "no encontrado") || strings.Contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Pago no encontrado"})
+			return
+		}
+		if strings.Contains(err.Error(), "cannot undo") || strings.Contains(err.Error(), "cannot be undone") {
+			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{"message": "Pago deshecho"})
 }
 

@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/sjperalta/fintera-api/internal/models"
@@ -16,6 +17,7 @@ type UserRepository interface {
 	FindByIdentity(ctx context.Context, identity string) (*models.User, error)
 	Create(ctx context.Context, user *models.User) error
 	Update(ctx context.Context, user *models.User) error
+	SetRecoveryCode(ctx context.Context, userID uint, code string, sentAt time.Time) error
 	Delete(ctx context.Context, id uint) error
 	SoftDelete(ctx context.Context, id uint) error
 	Restore(ctx context.Context, id uint) error
@@ -89,6 +91,18 @@ func isDuplicateKeyError(err error, constraintName string) bool {
 
 func (r *userRepository) Update(ctx context.Context, user *models.User) error {
 	return r.db.WithContext(ctx).Save(user).Error
+}
+
+func (r *userRepository) SetRecoveryCode(ctx context.Context, userID uint, code string, sentAt time.Time) error {
+	sentAt = sentAt.UTC()
+	u := &models.User{
+		RecoveryCode:       &code,
+		RecoveryCodeSentAt: &sentAt,
+	}
+	return r.db.WithContext(ctx).Model(&models.User{}).
+		Where("id = ?", userID).
+		Select("RecoveryCode", "RecoveryCodeSentAt").
+		Updates(u).Error
 }
 
 func (r *userRepository) Delete(ctx context.Context, id uint) error {

@@ -106,7 +106,7 @@ func (s *EmailService) SendRecoveryCode(ctx context.Context, user *models.User, 
 	return nil
 }
 
-func (s *EmailService) SendAccountCreated(ctx context.Context, user *models.User) error {
+func (s *EmailService) SendAccountCreated(ctx context.Context, user *models.User, tempPassword string) error {
 	if err := s.ensureEmailConfigured(); err != nil {
 		logger.Error(fmt.Sprintf("Failed to send account created email to %s: %v", user.Email, err))
 		return err
@@ -117,11 +117,15 @@ func (s *EmailService) SendAccountCreated(ctx context.Context, user *models.User
 	}
 
 	data := struct {
-		Name   string
-		AppURL string
+		Name          string
+		AppURL        string
+		TempPassword  string
+		ShowPassword  bool
 	}{
-		Name:   user.FullName,
-		AppURL: s.config.AppURL,
+		Name:         user.FullName,
+		AppURL:       s.config.AppURL,
+		TempPassword: tempPassword,
+		ShowPassword: tempPassword != "",
 	}
 
 	body, err := s.renderTemplate("account_created.html", data)

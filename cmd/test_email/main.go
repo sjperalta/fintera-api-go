@@ -49,7 +49,7 @@ func main() {
 
 	// Send Account Created email
 	log.Printf("Sending Account Created email to %s...", toEmail)
-	err = emailService.SendAccountCreated(context.Background(), user)
+	err = emailService.SendAccountCreated(context.Background(), user, "")
 	if err != nil {
 		log.Fatalf("Failed to send Account Created email: %v", err)
 	}

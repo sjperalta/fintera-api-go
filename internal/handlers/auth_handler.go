@@ -1,9 +1,11 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/go-playground/validator/v10"
 	"github.com/sjperalta/fintera-api/internal/services"
 )
 
@@ -40,6 +42,24 @@ type LoginRequest struct {
 	Password string `json:"password" binding:"required"`
 }
 
+// loginValidationMessage maps login binding errors to user-friendly Spanish messages.
+func loginValidationMessage(err error) string {
+	var valErr validator.ValidationErrors
+	if err != nil && errors.As(err, &valErr) && len(valErr) > 0 {
+		e := valErr[0]
+		switch e.Field() {
+		case "Email":
+			if e.Tag() == "email" {
+				return "El correo electrónico no tiene un formato válido"
+			}
+			return "El correo electrónico es requerido"
+		case "Password":
+			return "La contraseña es requerida"
+		}
+	}
+	return "Email y contraseña son requeridos"
+}
+
 // @Summary Login
 // @Description Authenticates a user
 // @Tags Auth
@@ -52,7 +72,8 @@ type LoginRequest struct {
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Email y contraseña son requeridos"})
+		msg := loginValidationMessage(err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": msg})
 		return
 	}
 
