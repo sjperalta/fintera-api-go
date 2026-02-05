@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: #f3f4f6;
+            margin: 0;
+            padding: 0;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 40px auto;
+            background-color: #ffffff;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+
+        .header {
+            background: linear-gradient(135deg, #991b1b 0%, #b91c1c 100%);
+            padding: 32px;
+            text-align: center;
+        }
+
+        .logo {
+            color: #ffffff;
+            font-size: 24px;
+            font-weight: 700;
+            letter-spacing: -0.025em;
+            text-decoration: none;
+        }
+
+        .content {
+            padding: 40px 32px;
+        }
+
+        h1 {
+            color: #111827;
+            font-size: 24px;
+            font-weight: 700;
+            margin: 0 0 16px 0;
+            letter-spacing: -0.025em;
+        }
+
+        p {
+            color: #4b5563;
+            font-size: 16px;
+            line-height: 1.6;
+            margin: 0 0 24px 0;
+        }
+
+        .reason-box {
+            background-color: #fef2f2;
+            border-left: 4px solid #dc2626;
+            padding: 20px;
+            margin: 24px 0;
+            border-radius: 8px;
+            color: #991b1b;
+        }
+
+        .reason-box strong {
+            display: block;
+            font-size: 14px;
+            margin-bottom: 8px;
+            color: #7f1d1d;
+        }
+
+        .reason-box p {
+            margin: 0;
+            color: #991b1b;
+            font-size: 15px;
+        }
+
+        .details-grid {
+            display: grid;
+            gap: 16px;
+            padding: 24px;
+            background-color: #f9fafb;
+            border-radius: 12px;
+            margin: 24px 0;
+        }
+
+        .detail-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .detail-item:last-child {
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+
+        .detail-label {
+            color: #6b7280;
+            font-size: 14px;
+        }
+
+        .detail-value {
+            color: #111827;
+            font-weight: 600;
+            font-size: 14px;
+            text-align: right;
+        }
+
+        .button {
+            display: block;
+            width: fit-content;
+            margin: 32px auto 0;
+            background-color: #1e3a8a;
+            color: #ffffff;
+            padding: 14px 28px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 16px;
+            text-align: center;
+        }
+
+        .footer {
+            background-color: #f9fafb;
+            padding: 24px;
+            text-align: center;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        .footer p {
+            color: #9ca3af;
+            font-size: 12px;
+            margin: 4px 0;
+        }
+
+        @media (max-width: 640px) {
+            .container {
+                margin: 20px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">Fintera</div>
+        </div>
+        <div class="content">
+            <h1>Pago rechazado</h1>
+            <p>Hola {{.Name}},</p>
+            <p>Lamentamos informarte que tu pago de <strong>{{.Amount}}</strong> para <strong>{{.ProjectName}}</strong>{{if .LotName}} – Lote <strong>{{.LotName}}</strong>{{end}} (vencimiento: {{.DueDate}}) ha sido rechazado.</p>
+
+            {{if .Reason}}
+            <div class="reason-box">
+                <strong>Razón del rechazo:</strong>
+                <p>{{.Reason}}</p>
+            </div>
+            {{end}}
+
+            <div class="details-grid">
+                {{if .ProjectName}}
+                <div class="detail-item">
+                    <span class="detail-label">Proyecto</span>
+                    <span class="detail-value">{{.ProjectName}}</span>
+                </div>
+                {{end}}
+                {{if .LotName}}
+                <div class="detail-item">
+                    <span class="detail-label">Lote</span>
+                    <span class="detail-value">{{.LotName}}</span>
+                </div>
+                {{end}}
+                <div class="detail-item">
+                    <span class="detail-label">Monto</span>
+                    <span class="detail-value">{{.Amount}}</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">Fecha de vencimiento</span>
+                    <span class="detail-value">{{.DueDate}}</span>
+                </div>
+            </div>
+
+            <p>Si tienes dudas o deseas subir un nuevo comprobante, puedes iniciar sesión en la plataforma.</p>
+            <a href="{{.AppURL}}/dashboard" class="button">Ir al panel</a>
+        </div>
+        <div class="footer">
+            <p>&copy; 2026 Fintera. Todos los derechos reservados.</p>
+        </div>
+    </div>
+</body>
+
+</html>

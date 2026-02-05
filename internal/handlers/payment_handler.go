@@ -204,19 +204,29 @@ func (h *PaymentHandler) Approve(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"payment": payment.ToResponse(), "message": "Pago aprobado"})
 }
 
+// RejectPaymentRequest is the request body for rejecting a payment
+type RejectPaymentRequest struct {
+	Reason string `json:"reason"`
+}
+
 // @Summary Reject Payment
-// @Description Reject a payment (Admin)
+// @Description Reject a payment (Admin). Optionally include a reason in the request body; the applicant receives it in the notification and email.
 // @Tags Payments
 // @Accept json
 // @Produce json
 // @Param payment_id path int true "Payment ID"
+// @Param body body RejectPaymentRequest false "Rejection reason (optional)"
 // @Success 200 {object} models.PaymentResponse
 // @Security BearerAuth
 // @Router /payments/{payment_id}/reject [post]
 func (h *PaymentHandler) Reject(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("payment_id"), 10, 32)
+	var req RejectPaymentRequest
+	c.ShouldBindJSON(&req)
+
 	payment, err := h.paymentService.Reject(c.Request.Context(), uint(id),
 		h.getUserID(c),
+		req.Reason,
 		c.ClientIP(),
 		c.Request.UserAgent(),
 	)

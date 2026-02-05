@@ -233,7 +233,7 @@ func (s *PaymentService) Approve(ctx context.Context, id uint, amount, interestA
 	return payment, nil
 }
 
-func (s *PaymentService) Reject(ctx context.Context, id uint, actorID uint, ip, userAgent string) (*models.Payment, error) {
+func (s *PaymentService) Reject(ctx context.Context, id uint, actorID uint, reason string, ip, userAgent string) (*models.Payment, error) {
 	payment, err := s.repo.FindByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -244,18 +244,33 @@ func (s *PaymentService) Reject(ctx context.Context, id uint, actorID uint, ip, 
 	}
 
 	payment.Status = models.PaymentStatusRejected
+	if reason != "" {
+		payment.RejectionReason = &reason
+	}
 
 	if err := s.repo.Update(ctx, payment); err != nil {
 		return nil, err
 	}
 
-	// Notify user
+	// Notify user (in-app + email with reason)
+	paymentAmount := payment.Amount
+	paymentDueDate := payment.DueDate.Format("02/01/2006")
+	notifyMsg := "Tu pago ha sido rechazado."
+	if reason != "" {
+		notifyMsg = "Tu pago ha sido rechazado. Razón: " + reason
+	}
 	s.worker.EnqueueAsync(func(ctx context.Context) error {
-		contract, _ := s.contractRepo.FindByIDWithDetails(ctx, payment.ContractID)
-		return s.notificationSvc.NotifyUser(ctx, contract.ApplicantUserID,
+		contract, err := s.contractRepo.FindByIDWithDetails(ctx, payment.ContractID)
+		if err != nil || contract == nil {
+			return err
+		}
+		if err := s.notificationSvc.NotifyUser(ctx, contract.ApplicantUserID,
 			"Pago rechazado",
-			"Tu pago ha sido rechazado",
-			models.NotificationTypePaymentRejected)
+			notifyMsg,
+			models.NotificationTypePaymentRejected); err != nil {
+			return err
+		}
+		return s.emailSvc.SendPaymentRejected(ctx, contract, paymentAmount, paymentDueDate, reason)
 	})
 
 	// Audit log

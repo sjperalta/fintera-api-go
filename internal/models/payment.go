@@ -20,6 +20,7 @@ type Payment struct {
 	InterestAmount   *float64   `gorm:"type:decimal(10,2)" json:"interest_amount"`
 	ApprovedAt       *time.Time `gorm:"index" json:"approved_at"`
 	ApprovedByUserID *uint      `gorm:"index" json:"approved_by_user_id"`
+	RejectionReason  *string    `gorm:"type:text" json:"rejection_reason,omitempty"`
 	DocumentPath     *string    `json:"-"` // Receipt file path
 	CreatedAt        time.Time  `gorm:"index" json:"created_at"`
 	UpdatedAt        time.Time  `json:"updated_at"`
@@ -103,6 +104,7 @@ type PaymentResponse struct {
 	Approver       string     `json:"approver,omitempty"`
 	HasReceipt     bool       `json:"has_receipt"`
 	IsPDF          bool       `json:"is_pdf"`
+	RejectionReason *string   `json:"rejection_reason,omitempty"`
 
 	// Contract details
 	ContractStatus    string  `json:"contract_status,omitempty"`
@@ -142,6 +144,9 @@ func (p *Payment) ToResponse() PaymentResponse {
 	}
 	if p.InterestAmount != nil {
 		resp.InterestAmount = *p.InterestAmount
+	}
+	if p.RejectionReason != nil {
+		resp.RejectionReason = p.RejectionReason
 	}
 
 	// Add contract details if available
