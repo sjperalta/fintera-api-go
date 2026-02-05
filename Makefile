@@ -6,7 +6,7 @@
 # If DATABASE_URL was in .env, 'include' set it. If it was already in env, 
 # 'include' might have overridden it depending on 'make' version.
 # To be safe, we can use the following pattern:
-export DATABASE_URL ?= $(DATABASE_URL)
+export DATABASE_URL
 
 .PHONY: build run dev test clean migrate
 
