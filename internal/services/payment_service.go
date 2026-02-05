@@ -233,7 +233,7 @@ func (s *PaymentService) Approve(ctx context.Context, id uint, amount, interestA
 	return payment, nil
 }
 
-func (s *PaymentService) Reject(ctx context.Context, id uint, actorID uint, reason string, ip, userAgent string) (*models.Payment, error) {
+func (s *PaymentService) Reject(ctx context.Context, id uint, actorID uint, reason string, ip, userAgent string) (*models.Payment, error) { // Updated signature verification
 	payment, err := s.repo.FindByID(ctx, id)
 	if err != nil {
 		return nil, err
