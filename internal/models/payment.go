@@ -102,9 +102,10 @@ type PaymentResponse struct {
 	PaymentDate    *time.Time `json:"payment_date"`
 	ApprovedAt     *time.Time `json:"approved_at"`
 	Approver       string     `json:"approver,omitempty"`
-	HasReceipt     bool       `json:"has_receipt"`
-	IsPDF          bool       `json:"is_pdf"`
-	RejectionReason *string   `json:"rejection_reason,omitempty"`
+	HasReceipt      bool    `json:"has_receipt"`
+	IsPDF           bool    `json:"is_pdf"`
+	IsOverpayment   bool    `json:"is_overpayment"` // true when paid_amount > amount
+	RejectionReason *string `json:"rejection_reason,omitempty"`
 
 	// Contract details
 	ContractStatus    string  `json:"contract_status,omitempty"`
@@ -141,6 +142,7 @@ func (p *Payment) ToResponse() PaymentResponse {
 
 	if p.PaidAmount != nil {
 		resp.PaidAmount = *p.PaidAmount
+		resp.IsOverpayment = *p.PaidAmount > p.Amount
 	}
 	if p.InterestAmount != nil {
 		resp.InterestAmount = *p.InterestAmount

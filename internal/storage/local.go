@@ -8,6 +8,7 @@ import (
 	"mime/multipart"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -95,9 +96,30 @@ func (s *LocalStorage) Exists(relativePath string) bool {
 	return err == nil
 }
 
-// GetFullPath returns the absolute path for serving files
+// GetFullPath returns the absolute path for serving files (no traversal check)
 func (s *LocalStorage) GetFullPath(relativePath string) string {
 	return filepath.Join(s.basePath, relativePath)
+}
+
+// SafeFullPath returns the full path for serving files only if it is under basePath (prevents path traversal)
+func (s *LocalStorage) SafeFullPath(relativePath string) (string, error) {
+	cleanRel := filepath.Clean(relativePath)
+	if cleanRel == ".." || strings.HasPrefix(cleanRel, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("invalid path")
+	}
+	full := filepath.Join(s.basePath, cleanRel)
+	baseAbs, err := filepath.Abs(s.basePath)
+	if err != nil {
+		return "", err
+	}
+	fullAbs, err := filepath.Abs(full)
+	if err != nil {
+		return "", err
+	}
+	if fullAbs != baseAbs && !strings.HasPrefix(fullAbs, baseAbs+string(filepath.Separator)) {
+		return "", fmt.Errorf("path escapes storage base")
+	}
+	return full, nil
 }
 
 // GetSize returns the size of a file in bytes

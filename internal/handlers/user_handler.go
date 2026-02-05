@@ -343,7 +343,25 @@ func (h *UserHandler) ChangePassword(c *gin.Context) {
 // @Security BearerAuth
 // @Router /users/{user_id}/resend_confirmation [post]
 func (h *UserHandler) ResendConfirmation(c *gin.Context) {
-	// TODO: Implement
+	userID, err := strconv.ParseUint(c.Param("user_id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID de usuario inválido"})
+		return
+	}
+
+	currentUserID := middleware.GetUserID(c)
+	currentUserRole := middleware.GetUserRole(c)
+	// Only the user themselves or an admin can resend confirmation
+	if uint(userID) != currentUserID && currentUserRole != "admin" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "No tienes permiso para reenviar la confirmación de este usuario"})
+		return
+	}
+
+	if err := h.userService.ResendConfirmation(c.Request.Context(), uint(userID)); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al reenviar el email de confirmación"})
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{"message": "Email de confirmación reenviado"})
 }
 
@@ -383,7 +401,12 @@ func (h *UserHandler) Payments(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"payments": payments})
+	// Use same response shape as admin payment list so paid_amount (including overpayments) is always a number
+	responses := make([]models.PaymentResponse, 0, len(payments))
+	for _, p := range payments {
+		responses = append(responses, p.ToResponse())
+	}
+	c.JSON(http.StatusOK, gin.H{"payments": responses})
 }
 
 // @Summary Get Payment History

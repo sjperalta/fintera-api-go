@@ -343,7 +343,9 @@ func (r *paymentRepository) List(ctx context.Context, query *ListQuery) ([]model
 		return nil, 0, err
 	}
 
-	// Apply sorting
+	// Apply sorting: always show "submitted" (enviados) first, then the rest
+	submittedFirst := "(CASE WHEN payments.status = '" + models.PaymentStatusSubmitted + "' THEN 0 ELSE 1 END) ASC"
+	db = db.Order(submittedFirst)
 	if query.SortBy != "" {
 		field := query.SortBy
 		// Map frontend fields to database columns if necessary
