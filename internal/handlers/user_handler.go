@@ -1,11 +1,13 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/go-playground/validator/v10"
 	"github.com/sjperalta/fintera-api/internal/middleware"
 	"github.com/sjperalta/fintera-api/internal/models"
 	"github.com/sjperalta/fintera-api/internal/repository"
@@ -112,7 +114,7 @@ func (h *UserHandler) Show(c *gin.Context) {
 
 type CreateUserRequest struct {
 	Email          string `json:"email" binding:"required,email"`
-	Password       string `json:"password" binding:"required,min=6"`
+	Password       string `json:"password"` // Optional: if empty, backend generates 5-char temp password and emails it
 	FullName       string `json:"full_name"`
 	FullNamePascal string `json:"FullName"` // Support PascalCase from some frontends/tools
 	Phone          string `json:"phone"`
@@ -132,10 +134,46 @@ type CreateUserRequest struct {
 // @Failure 400 {object} map[string]string
 // @Security BearerAuth
 // @Router /users [post]
+// createUserValidationMessage maps validator errors to user-friendly Spanish messages.
+func createUserValidationMessage(err error) string {
+	var valErr validator.ValidationErrors
+	if ok := AsValidationErrors(err, &valErr); ok && len(valErr) > 0 {
+		e := valErr[0]
+		field := e.Field()
+		tag := e.Tag()
+		switch field {
+		case "Email":
+			if tag == "required" {
+				return "El correo electrónico es requerido"
+			}
+			if tag == "email" {
+				return "El correo electrónico no tiene un formato válido"
+			}
+		case "Password":
+			if tag == "min" {
+				return "La contraseña debe tener al menos 6 caracteres"
+			}
+		case "FullName":
+			return "El nombre completo es requerido"
+		}
+		return "Datos inválidos: " + e.Field() + " (" + tag + ")"
+	}
+	return "Datos inválidos. Verifique el formulario."
+}
+
+// AsValidationErrors returns true if err is (or wraps) validator.ValidationErrors and assigns to out.
+func AsValidationErrors(err error, out *validator.ValidationErrors) bool {
+	if err == nil {
+		return false
+	}
+	return errors.As(err, out)
+}
+
 func (h *UserHandler) Create(c *gin.Context) {
 	var req CreateUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		msg := createUserValidationMessage(err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": msg})
 		return
 	}
 
@@ -351,8 +389,8 @@ func (h *UserHandler) ResendConfirmation(c *gin.Context) {
 
 	currentUserID := middleware.GetUserID(c)
 	currentUserRole := middleware.GetUserRole(c)
-	// Only the user themselves or an admin can resend confirmation
-	if uint(userID) != currentUserID && currentUserRole != "admin" {
+	// The user themselves, an admin, or a seller can resend confirmation
+	if uint(userID) != currentUserID && currentUserRole != "admin" && currentUserRole != "seller" {
 		c.JSON(http.StatusForbidden, gin.H{"error": "No tienes permiso para reenviar la confirmación de este usuario"})
 		return
 	}
@@ -515,6 +553,7 @@ func (h *UserHandler) SendRecoveryCode(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	req.Email = strings.TrimSpace(req.Email)
 
 	if err := h.userService.SendRecoveryCode(c.Request.Context(), req.Email); err != nil {
 		// Log the error for debugging
@@ -531,7 +570,7 @@ func (h *UserHandler) SendRecoveryCode(c *gin.Context) {
 
 type VerifyRecoveryCodeRequest struct {
 	Email string `json:"email" binding:"required,email"`
-	Code  string `json:"code" binding:"required,len=6"`
+	Code  string `json:"code" binding:"required"`
 }
 
 // @Summary Verify Recovery Code
@@ -548,6 +587,12 @@ func (h *UserHandler) VerifyRecoveryCode(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	req.Email = strings.TrimSpace(req.Email)
+	req.Code = strings.TrimSpace(req.Code)
+	if len(req.Code) != 6 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "El código debe tener 6 dígitos"})
+		return
+	}
 
 	valid, err := h.userService.VerifyRecoveryCode(c.Request.Context(), req.Email, req.Code)
 	if err != nil {
@@ -560,7 +605,7 @@ func (h *UserHandler) VerifyRecoveryCode(c *gin.Context) {
 
 type UpdatePasswordWithCodeRequest struct {
 	Email       string `json:"email" binding:"required,email"`
-	Code        string `json:"code" binding:"required,len=6"`
+	Code        string `json:"code" binding:"required"`
 	NewPassword string `json:"new_password" binding:"required,min=6"`
 }
 
@@ -576,6 +621,12 @@ func (h *UserHandler) UpdatePasswordWithCode(c *gin.Context) {
 	var req UpdatePasswordWithCodeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	req.Email = strings.TrimSpace(req.Email)
+	req.Code = strings.TrimSpace(req.Code)
+	if len(req.Code) != 6 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "El código debe tener 6 dígitos"})
 		return
 	}
 

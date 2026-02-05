@@ -107,6 +107,10 @@
             <h1>¡Bienvenido a Fintera!</h1>
             <p>Hola {{.Name}},</p>
             <p>Tu cuenta ha sido creada exitosamente. Estamos emocionados de acompañarte en este viaje.</p>
+            {{if .ShowPassword}}
+            <p style="margin:24px 0;padding:16px;background:#f0f9ff;border-radius:8px;font-family:monospace;font-size:20px;font-weight:bold;letter-spacing:4px;">{{.TempPassword}}</p>
+            <p style="font-size:14px;color:#6b7280;">Esta es tu contraseña temporal. Deberás cambiarla la primera vez que inicies sesión por seguridad.</p>
+            {{end}}
 
             <a href="{{.AppURL}}/login" class="button">Iniciar Sesión</a>
         </div>

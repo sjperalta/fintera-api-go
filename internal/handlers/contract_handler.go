@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"net/mail"
 	"strconv"
 	"strings"
 	"time"
@@ -167,13 +168,24 @@ func (h *ContractHandler) Create(c *gin.Context) {
 		applicantID = user.ID
 	} else {
 		// Create New User
-		// Check if email already exists
-		email := c.Request.FormValue("user[email]")
-		identity := c.Request.FormValue("user[identity]")
+		email := strings.TrimSpace(c.Request.FormValue("user[email]"))
+		identity := strings.TrimSpace(c.Request.FormValue("user[identity]"))
 
-		// Basic validation
+		// Required
 		if email == "" || identity == "" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Email e Identidad son requeridos para nuevos usuarios"})
+			return
+		}
+
+		// Validate email format
+		if _, err := mail.ParseAddress(email); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "El correo electrónico no tiene un formato válido"})
+			return
+		}
+
+		// Validate identity (non-empty, reasonable length to avoid garbage)
+		if len(identity) < 5 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "La identidad debe tener al menos 5 caracteres"})
 			return
 		}
 
@@ -198,9 +210,12 @@ func (h *ContractHandler) Create(c *gin.Context) {
 					Status:   models.StatusActive,
 					Locale:   models.LocaleES,
 				}
-				// Set default password (should be changed by user later)
-				tempPassword := "Fintera" + identity
-
+				// Generate 5-char temp password (number, uppercase, symbol) - user must change on first login
+				tempPassword, err := services.GenerateTempPassword()
+				if err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "Error generando contraseña temporal"})
+					return
+				}
 				if err := h.contractService.CreateUser(c.Request.Context(), newUser, tempPassword); err != nil {
 					c.JSON(http.StatusInternalServerError, gin.H{"error": "Error creando usuario: " + err.Error()})
 					return

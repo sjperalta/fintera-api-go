@@ -32,6 +32,7 @@ type User struct {
 	Note                *string    `json:"note"`
 	CreditScore         int        `gorm:"default:0" json:"credit_score"`
 	Locale              string     `gorm:"default:es" json:"locale"`
+	MustChangePassword  bool       `gorm:"column:must_change_password;default:false" json:"must_change_password"`
 	CreatedAt           time.Time  `json:"created_at"`
 	UpdatedAt           time.Time  `json:"updated_at"`
 
@@ -107,38 +108,40 @@ const (
 
 // UserResponse is the JSON response format for users
 type UserResponse struct {
-	ID          uint       `json:"id"`
-	Email       string     `json:"email"`
-	FullName    string     `json:"full_name"`
-	Phone       string     `json:"phone"`
-	Role        string     `json:"role"`
-	Status      string     `json:"status"`
-	Identity    string     `json:"identity"`
-	RTN         string     `json:"rtn"`
-	Address     *string    `json:"address"`
-	CreditScore int        `json:"credit_score"`
-	Locale      string     `json:"locale"`
-	ConfirmedAt *time.Time `json:"confirmed_at"`
-	CreatedAt   time.Time  `json:"created_at"`
-	UpdatedAt   time.Time  `json:"updated_at"`
+	ID                  uint       `json:"id"`
+	Email               string     `json:"email"`
+	FullName            string     `json:"full_name"`
+	Phone               string     `json:"phone"`
+	Role                string     `json:"role"`
+	Status              string     `json:"status"`
+	Identity            string     `json:"identity"`
+	RTN                 string     `json:"rtn"`
+	Address             *string    `json:"address"`
+	CreditScore         int        `json:"credit_score"`
+	Locale              string     `json:"locale"`
+	MustChangePassword  bool       `json:"must_change_password"`
+	ConfirmedAt         *time.Time `json:"confirmed_at"`
+	CreatedAt           time.Time  `json:"created_at"`
+	UpdatedAt           time.Time  `json:"updated_at"`
 }
 
 // ToResponse converts User to UserResponse
 func (u *User) ToResponse() UserResponse {
 	return UserResponse{
-		ID:          u.ID,
-		Email:       u.Email,
-		FullName:    u.FullName,
-		Phone:       u.Phone,
-		Role:        u.Role,
-		Status:      u.Status,
-		Identity:    u.Identity,
-		RTN:         u.RTN,
-		Address:     u.Address,
-		CreditScore: u.CreditScore,
-		Locale:      u.Locale,
-		ConfirmedAt: u.ConfirmedAt,
-		CreatedAt:   u.CreatedAt,
-		UpdatedAt:   u.UpdatedAt,
+		ID:                 u.ID,
+		Email:              u.Email,
+		FullName:           u.FullName,
+		Phone:              u.Phone,
+		Role:               u.Role,
+		Status:             u.Status,
+		Identity:           u.Identity,
+		RTN:                u.RTN,
+		Address:            u.Address,
+		CreditScore:        u.CreditScore,
+		Locale:             u.Locale,
+		MustChangePassword: u.MustChangePassword,
+		ConfirmedAt:        u.ConfirmedAt,
+		CreatedAt:          u.CreatedAt,
+		UpdatedAt:          u.UpdatedAt,
 	}
 }

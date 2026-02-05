@@ -41,6 +41,19 @@ func (s *UserService) List(ctx context.Context, query *repository.ListQuery) ([]
 
 func (s *UserService) Create(ctx context.Context, user *models.User, password string, actorID uint) error {
 	user.Email = strings.ToLower(user.Email)
+
+	// If password is empty, generate a 5-char temp password (number, uppercase, symbol)
+	tempPassword := ""
+	if password == "" {
+		pw, err := GenerateTempPassword()
+		if err != nil {
+			return fmt.Errorf("failed to generate temp password: %w", err)
+		}
+		password = pw
+		tempPassword = pw
+		user.MustChangePassword = true
+	}
+
 	hashedPassword, err := HashPassword(password)
 	if err != nil {
 		return err
@@ -49,9 +62,8 @@ func (s *UserService) Create(ctx context.Context, user *models.User, password st
 	if err := s.repo.Create(ctx, user); err != nil {
 		return err
 	}
-	if err := s.emailService.SendAccountCreated(ctx, user); err != nil {
+	if err := s.emailService.SendAccountCreated(ctx, user, tempPassword); err != nil {
 		// Log but don't fail user creation; welcome email is best-effort
-		// Error is already logged inside SendAccountCreated
 		_ = err
 	}
 	return s.auditSvc.Log(ctx, actorID, "CREATE", "User", user.ID, fmt.Sprintf("Usuario creado: %s (%s) - Rol: %s", user.FullName, user.Email, user.Role), "", "")
@@ -108,6 +120,7 @@ func (s *UserService) ChangePassword(ctx context.Context, userID uint, currentPa
 		return err
 	}
 	user.EncryptedPassword = hashedPassword
+	user.MustChangePassword = false
 	if err := s.repo.Update(ctx, user); err != nil {
 		return err
 	}
@@ -124,6 +137,7 @@ func (s *UserService) ForceChangePassword(ctx context.Context, userID uint, newP
 		return err
 	}
 	user.EncryptedPassword = hashedPassword
+	user.MustChangePassword = false
 	if err := s.repo.Update(ctx, user); err != nil {
 		return err
 	}
@@ -145,5 +159,5 @@ func (s *UserService) ResendConfirmation(ctx context.Context, userID uint) error
 	if err != nil {
 		return err
 	}
-	return s.emailService.SendAccountCreated(ctx, user)
+	return s.emailService.SendAccountCreated(ctx, user, "")
 }
