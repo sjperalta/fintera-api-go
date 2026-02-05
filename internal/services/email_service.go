@@ -357,26 +357,40 @@ func (s *EmailService) SendPaymentApproved(ctx context.Context, payment *models.
 		interest = *payment.InterestAmount
 	}
 	totalAmount := payment.Amount + interest
+	paidAmount := totalAmount
+	if payment.PaidAmount != nil && *payment.PaidAmount > 0 {
+		paidAmount = *payment.PaidAmount
+	}
+	overpayment := 0.0
+	if paidAmount > totalAmount {
+		overpayment = paidAmount - totalAmount
+	}
 	data := struct {
-		Name           string
-		ProjectName    string
-		LotName        string
-		PaymentAmount  string
-		InterestAmount string
-		TotalAmount    string
-		DueDate        string
-		ApprovedAt     string
-		AppURL         string
+		Name              string
+		ProjectName       string
+		LotName           string
+		PaymentAmount     string
+		InterestAmount    string
+		TotalAmount       string
+		PaidAmount        string
+		HasOverpayment    bool
+		OverpaymentAmount string
+		DueDate           string
+		ApprovedAt        string
+		AppURL            string
 	}{
-		Name:           payment.Contract.ApplicantUser.FullName,
-		ProjectName:    payment.Contract.Lot.Project.Name,
-		LotName:        payment.Contract.Lot.Name,
-		PaymentAmount:  fmt.Sprintf("L%.2f", payment.Amount),
-		InterestAmount: fmt.Sprintf("L%.2f", interest),
-		TotalAmount:    fmt.Sprintf("L%.2f", totalAmount),
-		DueDate:        payment.DueDate.Format("02/01/2006"),
-		ApprovedAt:     payment.ApprovedAt.Format("02/01/2006"),
-		AppURL:         s.config.AppURL,
+		Name:              payment.Contract.ApplicantUser.FullName,
+		ProjectName:       payment.Contract.Lot.Project.Name,
+		LotName:            payment.Contract.Lot.Name,
+		PaymentAmount:     fmt.Sprintf("L%.2f", payment.Amount),
+		InterestAmount:    fmt.Sprintf("L%.2f", interest),
+		TotalAmount:       fmt.Sprintf("L%.2f", totalAmount),
+		PaidAmount:        fmt.Sprintf("L%.2f", paidAmount),
+		HasOverpayment:    overpayment > 0,
+		OverpaymentAmount: fmt.Sprintf("L%.2f", overpayment),
+		DueDate:           payment.DueDate.Format("02/01/2006"),
+		ApprovedAt:        payment.ApprovedAt.Format("02/01/2006"),
+		AppURL:            s.config.AppURL,
 	}
 
 	body, err := s.renderTemplate("payment_approved.html", data)
