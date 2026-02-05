@@ -40,6 +40,16 @@ func (h *PaymentHandler) Index(c *gin.Context) {
 	query.Filters["start_date"] = c.Query("start_date")
 	query.Filters["end_date"] = c.Query("end_date")
 
+	if search := c.Query("search"); search != "" {
+		query.Filters["search_term"] = search
+	}
+	if search := c.Query("search_term"); search != "" {
+		query.Filters["search_term"] = search
+	}
+	if applicant := c.Query("applicant"); applicant != "" {
+		query.Filters["search_term"] = applicant
+	}
+
 	// Parse sort parameter (format: field-direction)
 	if sort := c.Query("sort"); sort != "" {
 		parts := strings.Split(sort, "-")

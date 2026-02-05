@@ -30,6 +30,7 @@ type PaymentService struct {
 	lotRepo         repository.LotRepository
 	ledgerRepo      *repository.LedgerRepository
 	notificationSvc *NotificationService
+	emailSvc        *EmailService
 	auditSvc        *AuditService
 	storage         *storage.LocalStorage
 	worker          *jobs.Worker
@@ -41,6 +42,7 @@ func NewPaymentService(
 	lotRepo repository.LotRepository,
 	ledgerRepo *repository.LedgerRepository,
 	notificationSvc *NotificationService,
+	emailSvc *EmailService,
 	auditSvc *AuditService,
 	storage *storage.LocalStorage,
 	worker *jobs.Worker,
@@ -51,6 +53,7 @@ func NewPaymentService(
 		lotRepo:         lotRepo,
 		ledgerRepo:      ledgerRepo,
 		notificationSvc: notificationSvc,
+		emailSvc:        emailSvc,
 		auditSvc:        auditSvc,
 		storage:         storage,
 		worker:          worker,
@@ -207,10 +210,18 @@ func (s *PaymentService) Approve(ctx context.Context, id uint, amount, interestA
 	s.worker.EnqueueAsync(func(ctx context.Context) error {
 		contract, _ := s.contractRepo.FindByIDWithDetails(ctx, payment.ContractID)
 		if contract != nil {
-			return s.notificationSvc.NotifyUser(ctx, contract.ApplicantUserID,
+			// In-app notification
+			if err := s.notificationSvc.NotifyUser(ctx, contract.ApplicantUserID,
 				"Pago aprobado",
 				"Tu pago ha sido aprobado",
-				models.NotificationTypePaymentApproved)
+				models.NotificationTypePaymentApproved); err != nil {
+				return err
+			}
+
+			// Email notification
+			// We need to ensure payment has contract loaded or passed correctly
+			payment.Contract = *contract // Attach Loaded contract
+			return s.emailSvc.SendPaymentApproved(ctx, payment)
 		}
 		return nil
 	})

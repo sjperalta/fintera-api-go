@@ -104,6 +104,16 @@ func (s *ContractService) Create(ctx context.Context, contract *models.Contract)
 			models.NotificationTypeContractApproved)
 	})
 
+	// Notify applicant via email
+	contractForEmail := contract
+	s.worker.EnqueueAsync(func(ctx context.Context) error {
+		// Log error inside service if it fails
+		if err := s.emailSvc.SendContractSubmitted(ctx, contractForEmail); err != nil {
+			return err
+		}
+		return nil
+	})
+
 	// Audit log
 	s.auditSvc.Log(ctx, contract.ApplicantUserID, "CREATE", "Contract", contract.ID,
 		fmt.Sprintf("Solicitud de contrato creada para el lote %s del proyecto %s. Precio: %.2f", lot.Name, lot.Project.Name, *contract.Amount), "", "")
@@ -189,12 +199,47 @@ func (s *ContractService) Approve(ctx context.Context, id uint) (*models.Contrac
 		s.lotRepo.Update(ctx, lot)
 	}
 
-	// Notify user asynchronously
+	// Find the "main" payment for the email highlight (Installment or Full Balance)
+	highlightAmount := 0.0
+	firstPaymentDate := ""
+
+	// Determine relevant payment generic logic
+	var targetPayment *models.Payment
+	for i := range payments {
+		p := &payments[i]
+		if contract.FinancingType == models.FinancingTypeDirect {
+			if p.PaymentType == models.PaymentTypeInstallment {
+				targetPayment = p
+				break
+			}
+		} else {
+			// Bank or Cash -> Look for the full balance payment
+			if p.PaymentType == models.PaymentTypeFull {
+				targetPayment = p
+				break
+			}
+		}
+	}
+
+	// Fallback to first payment if specific type not found (e.g. only reserve exists?)
+	if targetPayment == nil && len(payments) > 0 {
+		targetPayment = &payments[0]
+	}
+
+	if targetPayment != nil {
+		highlightAmount = targetPayment.Amount
+		firstPaymentDate = targetPayment.DueDate.Format("02/01/2006")
+	}
+
+	contractForEmail := contract
 	s.worker.EnqueueAsync(func(ctx context.Context) error {
-		return s.notificationSvc.NotifyUser(ctx, contract.ApplicantUserID,
+		if err := s.notificationSvc.NotifyUser(ctx, contractForEmail.ApplicantUserID,
 			"Contrato aprobado",
 			"Tu solicitud de contrato ha sido aprobada",
-			models.NotificationTypeContractApproved)
+			models.NotificationTypeContractApproved); err != nil {
+			return err
+		}
+		return s.emailSvc.SendContractApproved(ctx, contractForEmail, highlightAmount, firstPaymentDate)
 	})
 
 	// Audit log
@@ -236,12 +281,19 @@ func (s *ContractService) Reject(ctx context.Context, id uint, reason string) (*
 		s.lotRepo.Update(ctx, lot)
 	}
 
-	// Notify user
+	// Notify contract owner (in-app + email) with rejection reason
+	notifyTitle := "Contrato rechazado"
+	notifyMsg := "Tu solicitud de contrato ha sido rechazada."
+	if reason != "" {
+		notifyMsg = "Tu solicitud de contrato ha sido rechazada. Razón: " + reason
+	}
+	contractCopy := contract // capture for async
 	s.worker.EnqueueAsync(func(ctx context.Context) error {
-		return s.notificationSvc.NotifyUser(ctx, contract.ApplicantUserID,
-			"Contrato rechazado",
-			"Tu solicitud de contrato ha sido rechazada: "+reason,
-			models.NotificationTypeContractRejected)
+		if err := s.notificationSvc.NotifyUser(ctx, contractCopy.ApplicantUserID, notifyTitle, notifyMsg, models.NotificationTypeContractRejected); err != nil {
+			return err
+		}
+		_ = s.emailSvc.SendContractRejected(ctx, contractCopy, reason) // best-effort; owner already got in-app message
+		return nil
 	})
 
 	// Audit log

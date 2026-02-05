@@ -101,7 +101,7 @@ func TestUserHandler_Index_DefaultStatus(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	mockRepo := &mockUserRepo{}
-	userService := services.NewUserService(mockRepo, nil, nil)
+	userService := services.NewUserService(mockRepo, nil, nil, nil)
 	handler := NewUserHandler(userService, nil)
 
 	var capturedStatus string

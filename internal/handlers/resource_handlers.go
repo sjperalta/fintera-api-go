@@ -110,7 +110,8 @@ func (h *ProjectHandler) Create(c *gin.Context) {
 		}
 	}
 
-	if err := h.projectService.Create(c.Request.Context(), &project); err != nil {
+	actorID := middleware.GetUserID(c)
+	if err := h.projectService.Create(c.Request.Context(), &project, actorID); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -155,7 +156,8 @@ func (h *ProjectHandler) Update(c *gin.Context) {
 
 	project.ID = uint(id)
 
-	if err := h.projectService.Update(c.Request.Context(), &project); err != nil {
+	actorID := middleware.GetUserID(c)
+	if err := h.projectService.Update(c.Request.Context(), &project, actorID); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -174,7 +176,8 @@ func (h *ProjectHandler) Update(c *gin.Context) {
 // @Router /projects/{project_id} [delete]
 func (h *ProjectHandler) Delete(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("project_id"), 10, 32)
-	if err := h.projectService.Delete(c.Request.Context(), uint(id)); err != nil {
+	actorID := middleware.GetUserID(c)
+	if err := h.projectService.Delete(c.Request.Context(), uint(id), actorID); err != nil {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
 		return
 	}
@@ -225,8 +228,9 @@ func (h *ProjectHandler) Import(c *gin.Context) {
 		return
 	}
 
+	actorID := middleware.GetUserID(c)
 	for _, p := range req.Projects {
-		if err := h.projectService.Create(c.Request.Context(), &p); err != nil {
+		if err := h.projectService.Create(c.Request.Context(), &p, actorID); err != nil {
 			// Continue on error for now or break?
 			// c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			// return
@@ -335,7 +339,8 @@ func (h *LotHandler) Create(c *gin.Context) {
 
 	lot.ProjectID = uint(projectID)
 
-	if err := h.lotService.Create(c.Request.Context(), &lot); err != nil {
+	actorID := middleware.GetUserID(c)
+	if err := h.lotService.Create(c.Request.Context(), &lot, actorID); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -380,7 +385,8 @@ func (h *LotHandler) Update(c *gin.Context) {
 
 	lot.ID = uint(id)
 
-	if err := h.lotService.Update(c.Request.Context(), &lot); err != nil {
+	actorID := middleware.GetUserID(c)
+	if err := h.lotService.Update(c.Request.Context(), &lot, actorID); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -399,7 +405,8 @@ func (h *LotHandler) Update(c *gin.Context) {
 // @Router /projects/{project_id}/lots/{lot_id} [delete]
 func (h *LotHandler) Delete(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("lot_id"), 10, 32)
-	if err := h.lotService.Delete(c.Request.Context(), uint(id)); err != nil {
+	actorID := middleware.GetUserID(c)
+	if err := h.lotService.Delete(c.Request.Context(), uint(id), actorID); err != nil {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
 		return
 	}

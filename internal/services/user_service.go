@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/sjperalta/fintera-api/internal/jobs"
 	"github.com/sjperalta/fintera-api/internal/models"
@@ -13,13 +14,15 @@ type UserService struct {
 	repo         repository.UserRepository
 	worker       *jobs.Worker
 	emailService *EmailService
+	auditSvc     *AuditService
 }
 
-func NewUserService(repo repository.UserRepository, worker *jobs.Worker, emailService *EmailService) *UserService {
+func NewUserService(repo repository.UserRepository, worker *jobs.Worker, emailService *EmailService, auditSvc *AuditService) *UserService {
 	return &UserService{
 		repo:         repo,
 		worker:       worker,
 		emailService: emailService,
+		auditSvc:     auditSvc,
 	}
 }
 
@@ -35,28 +38,40 @@ func (s *UserService) List(ctx context.Context, query *repository.ListQuery) ([]
 	return s.repo.List(ctx, query)
 }
 
-func (s *UserService) Create(ctx context.Context, user *models.User, password string) error {
+func (s *UserService) Create(ctx context.Context, user *models.User, password string, actorID uint) error {
 	hashedPassword, err := HashPassword(password)
 	if err != nil {
 		return err
 	}
 	user.EncryptedPassword = hashedPassword
-	return s.repo.Create(ctx, user)
+	if err := s.repo.Create(ctx, user); err != nil {
+		return err
+	}
+	return s.auditSvc.Log(ctx, actorID, "CREATE", "User", user.ID, fmt.Sprintf("Usuario creado: %s (%s) - Rol: %s", user.FullName, user.Email, user.Role), "", "")
 }
 
-func (s *UserService) Update(ctx context.Context, user *models.User) error {
-	return s.repo.Update(ctx, user)
+func (s *UserService) Update(ctx context.Context, user *models.User, actorID uint) error {
+	if err := s.repo.Update(ctx, user); err != nil {
+		return err
+	}
+	return s.auditSvc.Log(ctx, actorID, "UPDATE", "User", user.ID, fmt.Sprintf("Usuario actualizado: %s", user.Email), "", "")
 }
 
-func (s *UserService) Delete(ctx context.Context, id uint) error {
-	return s.repo.SoftDelete(ctx, id)
+func (s *UserService) Delete(ctx context.Context, id uint, actorID uint) error {
+	if err := s.repo.SoftDelete(ctx, id); err != nil {
+		return err
+	}
+	return s.auditSvc.Log(ctx, actorID, "DELETE", "User", id, "Usuario eliminado (soft delete)", "", "")
 }
 
-func (s *UserService) Restore(ctx context.Context, id uint) error {
-	return s.repo.Restore(ctx, id)
+func (s *UserService) Restore(ctx context.Context, id uint, actorID uint) error {
+	if err := s.repo.Restore(ctx, id); err != nil {
+		return err
+	}
+	return s.auditSvc.Log(ctx, actorID, "RESTORE", "User", id, "Usuario restaurado", "", "")
 }
 
-func (s *UserService) ToggleStatus(ctx context.Context, id uint) (*models.User, error) {
+func (s *UserService) ToggleStatus(ctx context.Context, id uint, actorID uint) (*models.User, error) {
 	user, err := s.repo.FindByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -69,10 +84,11 @@ func (s *UserService) ToggleStatus(ctx context.Context, id uint) (*models.User, 
 	if err := s.repo.Update(ctx, user); err != nil {
 		return nil, err
 	}
+	s.auditSvc.Log(ctx, actorID, "TOGGLE_STATUS", "User", id, fmt.Sprintf("Estado cambiado a %s", user.Status), "", "")
 	return user, nil
 }
 
-func (s *UserService) ChangePassword(ctx context.Context, userID uint, currentPassword, newPassword string) error {
+func (s *UserService) ChangePassword(ctx context.Context, userID uint, currentPassword, newPassword string, actorID uint) error {
 	user, err := s.repo.FindByID(ctx, userID)
 	if err != nil {
 		return err
@@ -85,10 +101,13 @@ func (s *UserService) ChangePassword(ctx context.Context, userID uint, currentPa
 		return err
 	}
 	user.EncryptedPassword = hashedPassword
-	return s.repo.Update(ctx, user)
+	if err := s.repo.Update(ctx, user); err != nil {
+		return err
+	}
+	return s.auditSvc.Log(ctx, actorID, "CHANGE_PASSWORD", "User", userID, "Contraseña actualizada por el usuario", "", "")
 }
 
-func (s *UserService) ForceChangePassword(ctx context.Context, userID uint, newPassword string) error {
+func (s *UserService) ForceChangePassword(ctx context.Context, userID uint, newPassword string, actorID uint) error {
 	user, err := s.repo.FindByID(ctx, userID)
 	if err != nil {
 		return err
@@ -98,7 +117,10 @@ func (s *UserService) ForceChangePassword(ctx context.Context, userID uint, newP
 		return err
 	}
 	user.EncryptedPassword = hashedPassword
-	return s.repo.Update(ctx, user)
+	if err := s.repo.Update(ctx, user); err != nil {
+		return err
+	}
+	return s.auditSvc.Log(ctx, actorID, "FORCE_CHANGE_PASSWORD", "User", userID, "Contraseña restablecida por administrador", "", "")
 }
 
 func (s *UserService) UpdateLocale(ctx context.Context, userID uint, locale string) error {

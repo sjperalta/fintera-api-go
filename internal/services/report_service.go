@@ -575,6 +575,11 @@ func (s *ReportService) GenerateContractPDF(ctx context.Context, contractID uint
 		monthlyPayment = first.Amount // Assuming equal payments roughly
 	}
 
+	maxPaymentDate := ""
+	if contract.MaxPaymentDate != nil {
+		maxPaymentDate = formatDate(*contract.MaxPaymentDate)
+	}
+
 	data := map[string]interface{}{
 		"ClientName":           clientName,
 		"ClientIdentity":       clientIdentity,
@@ -604,6 +609,9 @@ func (s *ReportService) GenerateContractPDF(ctx context.Context, contractID uint
 		"MonthlyPayment":       toCurrency(monthlyPayment),
 		"MonthlyPaymentWords":  amountToWords(monthlyPayment),
 		"Date":                 formatDate(time.Now()),
+		"FinancingType":        contract.FinancingType,
+		"MaxPaymentDate":       maxPaymentDate,
+		"RawDownPayment":       downPayment,
 	}
 
 	return s.generatePDF("contract_promise.html", data)

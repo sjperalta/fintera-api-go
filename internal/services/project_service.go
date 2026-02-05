@@ -12,10 +12,11 @@ import (
 type ProjectService struct {
 	repo     repository.ProjectRepository
 	lotRepo  repository.LotRepository
+	auditSvc *AuditService
 }
 
-func NewProjectService(repo repository.ProjectRepository, lotRepo repository.LotRepository) *ProjectService {
-	return &ProjectService{repo: repo, lotRepo: lotRepo}
+func NewProjectService(repo repository.ProjectRepository, lotRepo repository.LotRepository, auditSvc *AuditService) *ProjectService {
+	return &ProjectService{repo: repo, lotRepo: lotRepo, auditSvc: auditSvc}
 }
 
 func (s *ProjectService) FindByID(ctx context.Context, id uint) (*models.Project, error) {
@@ -26,7 +27,7 @@ func (s *ProjectService) List(ctx context.Context, query *repository.ListQuery) 
 	return s.repo.List(ctx, query)
 }
 
-func (s *ProjectService) Create(ctx context.Context, project *models.Project) error {
+func (s *ProjectService) Create(ctx context.Context, project *models.Project, actorID uint) error {
 	// Auto-generate GUID if not provided
 	if project.GUID == "" {
 		project.GUID = uuid.New().String()
@@ -48,10 +49,13 @@ func (s *ProjectService) Create(ctx context.Context, project *models.Project) er
 			project.Lots = append(project.Lots, lot)
 		}
 	}
-	return s.repo.Create(ctx, project)
+	if err := s.repo.Create(ctx, project); err != nil {
+		return err
+	}
+	return s.auditSvc.Log(ctx, actorID, "CREATE", "Project", project.ID, fmt.Sprintf("Proyecto creado: %s. %d lotes generados.", project.Name, project.LotCount), "", "")
 }
 
-func (s *ProjectService) Update(ctx context.Context, project *models.Project) error {
+func (s *ProjectService) Update(ctx context.Context, project *models.Project, actorID uint) error {
 	existing, err := s.repo.FindByID(ctx, project.ID)
 	if err != nil {
 		return err
@@ -86,20 +90,27 @@ func (s *ProjectService) Update(ctx context.Context, project *models.Project) er
 		}
 	}
 
-	return s.repo.Update(ctx, project)
+	if err := s.repo.Update(ctx, project); err != nil {
+		return err
+	}
+	return s.auditSvc.Log(ctx, actorID, "UPDATE", "Project", project.ID, fmt.Sprintf("Proyecto actualizado: %s", project.Name), "", "")
 }
 
-func (s *ProjectService) Delete(ctx context.Context, id uint) error {
-	return s.repo.Delete(ctx, id)
+func (s *ProjectService) Delete(ctx context.Context, id uint, actorID uint) error {
+	if err := s.repo.Delete(ctx, id); err != nil {
+		return err
+	}
+	return s.auditSvc.Log(ctx, actorID, "DELETE", "Project", id, "Proyecto eliminado", "", "")
 }
 
 type LotService struct {
 	repo        repository.LotRepository
 	projectRepo repository.ProjectRepository
+	auditSvc    *AuditService
 }
 
-func NewLotService(repo repository.LotRepository, projectRepo repository.ProjectRepository) *LotService {
-	return &LotService{repo: repo, projectRepo: projectRepo}
+func NewLotService(repo repository.LotRepository, projectRepo repository.ProjectRepository, auditSvc *AuditService) *LotService {
+	return &LotService{repo: repo, projectRepo: projectRepo, auditSvc: auditSvc}
 }
 
 func (s *LotService) FindByID(ctx context.Context, id uint) (*models.Lot, error) {
@@ -114,7 +125,7 @@ func (s *LotService) List(ctx context.Context, projectID uint, query *repository
 	return s.repo.List(ctx, projectID, query)
 }
 
-func (s *LotService) Create(ctx context.Context, lot *models.Lot) error {
+func (s *LotService) Create(ctx context.Context, lot *models.Lot, actorID uint) error {
 	if err := s.repo.Create(ctx, lot); err != nil {
 		return err
 	}
@@ -124,10 +135,13 @@ func (s *LotService) Create(ctx context.Context, lot *models.Lot) error {
 		return err
 	}
 	project.LotCount++
-	return s.projectRepo.Update(ctx, project)
+	if err := s.projectRepo.Update(ctx, project); err != nil {
+		return err
+	}
+	return s.auditSvc.Log(ctx, actorID, "CREATE", "Lot", lot.ID, fmt.Sprintf("Lote creado: %s en Proyecto %s", lot.Name, project.Name), "", "")
 }
 
-func (s *LotService) Update(ctx context.Context, lot *models.Lot) error {
+func (s *LotService) Update(ctx context.Context, lot *models.Lot, actorID uint) error {
 	existingLot, err := s.repo.FindByID(ctx, lot.ID)
 	if err != nil {
 		return err
@@ -176,10 +190,13 @@ func (s *LotService) Update(ctx context.Context, lot *models.Lot) error {
 	}
 
 	// Ideally we should use a PATCH approach, but for now this fixes the critical data loss
-	return s.repo.Update(ctx, lot)
+	if err := s.repo.Update(ctx, lot); err != nil {
+		return err
+	}
+	return s.auditSvc.Log(ctx, actorID, "UPDATE", "Lot", lot.ID, fmt.Sprintf("Lote actualizado: %s", lot.Name), "", "")
 }
 
-func (s *LotService) Delete(ctx context.Context, id uint) error {
+func (s *LotService) Delete(ctx context.Context, id uint, actorID uint) error {
 	lot, err := s.repo.FindByID(ctx, id)
 	if err != nil {
 		return err
@@ -195,7 +212,9 @@ func (s *LotService) Delete(ctx context.Context, id uint) error {
 	}
 	if project.LotCount > 0 {
 		project.LotCount--
-		return s.projectRepo.Update(ctx, project)
+		if err := s.projectRepo.Update(ctx, project); err != nil {
+			return err
+		}
 	}
-	return nil
+	return s.auditSvc.Log(ctx, actorID, "DELETE", "Lot", id, "Lote eliminado", "", "")
 }

@@ -102,7 +102,8 @@
                 Propiedad Inmueble, Mercantil, Hipotecas y Anotaciones Preventivas de la
                 ciudad de Puerto Cortés, documentos de los cuales yo el Notario <strong>DOY FE</strong> de
                 haber tenido a la vista y la cual cuenta con las facultades necesarias para
-                comparecer ante este tipo de actos; y <strong>{{.ClientName}}</strong>, mayor de edad, casado, hondureño, con
+                comparecer ante este tipo de actos; y <strong>{{.ClientName}}</strong>, mayor de edad, casado,
+                hondureño, con
                 Número de Documento Nacional de Identificación <strong>{{.ClientIdentity}}</strong>, con domicilio en
                 <strong>{{.ClientAddress}}</strong>.
             </p>
@@ -122,7 +123,8 @@
             </p>
             <p>
                 Con extensión superficial de {{.LotAreaM2}} METROS CUADRADOS ({{.LotAreaM2}} M2) o {{.LotAreaUnit}}
-                {{.MeasurementUnit}} ({{.LotAreaUnit}} {{.MeasurementUnit}}), cuya matrícula es {{.LotRegistrationNumber}}
+                {{.MeasurementUnit}} ({{.LotAreaUnit}} {{.MeasurementUnit}}), cuya matrícula es
+                {{.LotRegistrationNumber}}
                 inscrita debidamente en el Instituto de la Propiedad. Dicha promesa de venta está sujeta a las cláusulas
                 y condiciones siguientes:
             </p>
@@ -136,15 +138,26 @@
             <p><strong>INCISO A) PAGO DE RESERVACIÓN:</strong> En fecha {{.Date}}, depositó la cantidad de
                 {{.ReserveAmountWords}} ({{.Currency}} {{.ReserveAmount}}) a la cuenta 2120545245 de BANCO DE OCCIDENTE.
             </p>
+            {{if gt .RawDownPayment 0.0}}
             <p><strong>INCISO B) PAGO/COMPLEMENTO DE PRIMA:</strong> Hasta la fecha {{.Date}}, se depositará la cantidad
                 de {{.DownPaymentWords}} ({{.Currency}} {{.DownPayment}}) a la cuenta 2120545245 de BANCO DE OCCIDENTE.
             </p>
+            {{end}}
+
+            {{if eq .FinancingType "direct"}}
             <p><strong>INCISO C) MONTO A FINANCIAR:</strong> La cantidad de {{.FinancingAmountWords}}
                 ({{.Currency}} {{.FinancingAmount}}) será financiada por medio de INVERSIONES FAMA S.A. DE C.V. a un
                 plazo de {{.PaymentTerm}} meses al 0% de interés. La primera cuota será el {{.FirstPaymentDate}} y la
                 última el {{.LastPaymentDate}}, haciendo un total de {{.PaymentTerm}} pagos por un monto de
                 {{.MonthlyPaymentWords}} ({{.Currency}} {{.MonthlyPayment}}).
             </p>
+            {{else}}
+            <p><strong>INCISO C) PAGO TOTAL:</strong> El saldo restante de {{.FinancingAmountWords}}
+                ({{.Currency}} {{.FinancingAmount}}) será cancelado en un único pago a más tardar el
+                {{.MaxPaymentDate}},
+                depositado a la cuenta 2120545245 de BANCO DE OCCIDENTE.
+            </p>
+            {{end}}
             <p>Lo descrito anteriormente queda sujeto a lo siguiente:</p>
             <p><strong>PRIMERO:</strong> En caso de que {{.ClientName}} se atrase con el pago en la fecha acordada, se
                 aplicará una tasa de interés moratorio del {{.InterestRate}}% mensual sobre el monto adeudado, a partir
