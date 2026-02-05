@@ -25,7 +25,7 @@
         }
 
         .header {
-            background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
+            background: linear-gradient(135deg, #991b1b 0%, #b91c1c 100%);
             padding: 32px;
             text-align: center;
         }
@@ -57,25 +57,26 @@
             margin: 0 0 24px 0;
         }
 
-        .highlight-box {
-            background: linear-gradient(135deg, #059669 0%, #10b981 100%);
-            color: white;
-            padding: 24px;
-            border-radius: 12px;
-            text-align: center;
+        .reason-box {
+            background-color: #fef2f2;
+            border-left: 4px solid #dc2626;
+            padding: 20px;
             margin: 24px 0;
-            box-shadow: 0 4px 6px -1px rgba(5, 150, 105, 0.2);
+            border-radius: 8px;
+            color: #991b1b;
         }
 
-        .highlight-label {
+        .reason-box strong {
+            display: block;
             font-size: 14px;
-            opacity: 0.9;
-            margin-bottom: 4px;
+            margin-bottom: 8px;
+            color: #7f1d1d;
         }
 
-        .highlight-amount {
-            font-size: 32px;
-            font-weight: 700;
+        .reason-box p {
+            margin: 0;
+            color: #991b1b;
+            font-size: 15px;
         }
 
         .details-grid {
@@ -110,15 +111,6 @@
             font-weight: 600;
             font-size: 14px;
             text-align: right;
-        }
-
-        .info-box {
-            background-color: #dbeafe;
-            border-left: 4px solid #3b82f6;
-            padding: 16px;
-            margin: 24px 0;
-            color: #1e3a8a;
-            font-size: 14px;
         }
 
         .button {
@@ -162,47 +154,34 @@
             <div class="logo">Fintera</div>
         </div>
         <div class="content">
-            <h1>¡Contrato Aprobado!</h1>
+            <h1>Contrato rechazado</h1>
             <p>Hola {{.Name}},</p>
-            <p>¡Excelentes noticias! Tu contrato para <strong>{{.ProjectName}}</strong> ha sido aprobado exitosamente.
-            </p>
+            <p>Lamentamos informarte que tu solicitud de contrato para <strong>{{.ProjectName}}</strong>{{if .LotName}} – Lote <strong>{{.LotName}}</strong>{{end}} ha sido rechazada.</p>
 
-            <div class="highlight-box">
-                <div class="highlight-label">{{if eq .FinancingType "direct"}}Cuota Mensual{{else}}Pago Final{{end}}
-                </div>
-                <div class="highlight-amount">{{.MonthlyPayment}}</div>
+            <div class="reason-box">
+                <strong>Razón del rechazo:</strong>
+                <p>{{.Reason}}</p>
             </div>
 
             <div class="details-grid">
+                {{if .ProjectName}}
+                <div class="detail-item">
+                    <span class="detail-label">Proyecto</span>
+                    <span class="detail-value">{{.ProjectName}}</span>
+                </div>
+                {{end}}
+                {{if .LotName}}
                 <div class="detail-item">
                     <span class="detail-label">Lote</span>
                     <span class="detail-value">{{.LotName}}</span>
                 </div>
-                <div class="detail-item">
-                    <span class="detail-label">Financiamiento</span>
-                    <span class="detail-value">{{.FinancingType}}</span>
-                </div>
-                {{if eq .FinancingType "direct"}}
-                <div class="detail-item">
-                    <span class="detail-label">Plazo</span>
-                    <span class="detail-value">{{.PaymentTerm}} meses</span>
-                </div>
                 {{end}}
-                <div class="detail-item">
-                    <span class="detail-label">Prima</span>
-                    <span class="detail-value">{{.DownPayment}}</span>
-                </div>
             </div>
 
-            <div class="info-box">
-                <strong>📅 {{if eq .FinancingType "direct"}}Primer Pago{{else}}Fecha Límite{{end}}:</strong>
-                {{.FirstPaymentDate}}
-            </div>
-
-            <a href="{{.AppURL}}/dashboard" class="button">Gestionar Contrato</a>
+            <p>Si tienes dudas o deseas corregir la información para una nueva solicitud, puedes iniciar sesión en la plataforma.</p>
+            <a href="{{.AppURL}}/dashboard" class="button">Ir al panel</a>
         </div>
         <div class="footer">
-            <p>Aprobado el: {{.ApprovedAt}}</p>
             <p>&copy; 2026 Fintera. Todos los derechos reservados.</p>
         </div>
     </div>

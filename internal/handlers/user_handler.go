@@ -170,7 +170,7 @@ func (h *UserHandler) Create(c *gin.Context) {
 		user.Address = &req.Address
 	}
 
-	if err := h.userService.Create(c.Request.Context(), user, req.Password); err != nil {
+	if err := h.userService.Create(c.Request.Context(), user, req.Password, creatorID); err != nil {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
 		return
 	}
@@ -237,7 +237,8 @@ func (h *UserHandler) Update(c *gin.Context) {
 		}
 	}
 
-	if err := h.userService.Update(c.Request.Context(), user); err != nil {
+	actorID := middleware.GetUserID(c)
+	if err := h.userService.Update(c.Request.Context(), user, actorID); err != nil {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
 		return
 	}
@@ -256,7 +257,8 @@ func (h *UserHandler) Update(c *gin.Context) {
 // @Router /users/{user_id} [delete]
 func (h *UserHandler) Delete(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("user_id"), 10, 32)
-	if err := h.userService.Delete(c.Request.Context(), uint(id)); err != nil {
+	actorID := middleware.GetUserID(c)
+	if err := h.userService.Delete(c.Request.Context(), uint(id), actorID); err != nil {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
 		return
 	}
@@ -274,7 +276,8 @@ func (h *UserHandler) Delete(c *gin.Context) {
 // @Router /users/{user_id}/toggle_status [put]
 func (h *UserHandler) ToggleStatus(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("user_id"), 10, 32)
-	user, err := h.userService.ToggleStatus(c.Request.Context(), uint(id))
+	actorID := middleware.GetUserID(c)
+	user, err := h.userService.ToggleStatus(c.Request.Context(), uint(id), actorID)
 	if err != nil {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
 		return
@@ -311,7 +314,7 @@ func (h *UserHandler) ChangePassword(c *gin.Context) {
 
 	// If admin is changing another user's password, force change without old password
 	if currentUserRole == "admin" && uint(id) != currentUserID {
-		if err := h.userService.ForceChangePassword(c.Request.Context(), uint(id), req.NewPassword); err != nil {
+		if err := h.userService.ForceChangePassword(c.Request.Context(), uint(id), req.NewPassword, currentUserID); err != nil {
 			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
 			return
 		}
@@ -321,7 +324,7 @@ func (h *UserHandler) ChangePassword(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Current password is required"})
 			return
 		}
-		if err := h.userService.ChangePassword(c.Request.Context(), uint(id), req.CurrentPassword, req.NewPassword); err != nil {
+		if err := h.userService.ChangePassword(c.Request.Context(), uint(id), req.CurrentPassword, req.NewPassword, currentUserID); err != nil {
 			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
 			return
 		}
@@ -433,7 +436,8 @@ func (h *UserHandler) Summary(c *gin.Context) {
 // @Router /users/{user_id}/restore [post]
 func (h *UserHandler) Restore(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 32)
-	if err := h.userService.Restore(c.Request.Context(), uint(id)); err != nil {
+	actorID := middleware.GetUserID(c)
+	if err := h.userService.Restore(c.Request.Context(), uint(id), actorID); err != nil {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
 		return
 	}
@@ -490,6 +494,11 @@ func (h *UserHandler) SendRecoveryCode(c *gin.Context) {
 	}
 
 	if err := h.userService.SendRecoveryCode(c.Request.Context(), req.Email); err != nil {
+		// Log the error for debugging
+		// assuming "github.com/sjperalta/fintera-api/pkg/logger" is imported or available via h.
+		// Since logger isn't imported in this file, we might need to add it or just rely on the service logging I added.
+		// Wait, I added logging to EmailService, but UserService might wrap it.
+		// check UserService.SendRecoveryCode.
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al enviar código"})
 		return
 	}

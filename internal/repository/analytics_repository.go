@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/sjperalta/fintera-api/internal/models"
@@ -93,7 +94,12 @@ func (r *analyticsRepository) InvalidateCache(ctx context.Context, key string, p
 }
 
 func (r *analyticsRepository) CleanExpiredCache(ctx context.Context) error {
-	return r.db.WithContext(ctx).Where("expires_at <= ?", time.Now()).Delete(&models.AnalyticsCache{}).Error
+	err := r.db.WithContext(ctx).Where("expires_at <= ?", time.Now()).Delete(&models.AnalyticsCache{}).Error
+	if err != nil && strings.Contains(err.Error(), "42P01") {
+		// Table does not exist yet (migration not run); skip cleanup
+		return nil
+	}
+	return err
 }
 
 // Data retrieval implementations

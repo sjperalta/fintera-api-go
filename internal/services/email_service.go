@@ -41,16 +41,21 @@ func getStringValue(s *string) string {
 // get a clear message instead of a Resend API error (e.g. 401).
 func (s *EmailService) ensureEmailConfigured() error {
 	if s.config.ResendAPIKey == "" {
-		return fmt.Errorf("email not configured: RESEND_API_KEY is not set (API loads .env)")
+		err := fmt.Errorf("email not configured: RESEND_API_KEY is not set (API loads .env)")
+		logger.Warn(err.Error())
+		return err
 	}
 	if s.config.FromEmail == "" {
-		return fmt.Errorf("email not configured: FROM_EMAIL is not set")
+		err := fmt.Errorf("email not configured: FROM_EMAIL is not set")
+		logger.Warn(err.Error())
+		return err
 	}
 	return nil
 }
 
 func (s *EmailService) SendRecoveryCode(ctx context.Context, user *models.User, code string) error {
 	if err := s.ensureEmailConfigured(); err != nil {
+		logger.Error(fmt.Sprintf("Failed to send recovery code to %s: %v", user.Email, err))
 		return err
 	}
 	data := struct {
@@ -67,6 +72,7 @@ func (s *EmailService) SendRecoveryCode(ctx context.Context, user *models.User, 
 
 	body, err := s.renderTemplate("reset_code.html", data)
 	if err != nil {
+		logger.Error(fmt.Sprintf("Failed to render reset_code template: %v", err))
 		return err
 	}
 
@@ -89,6 +95,7 @@ func (s *EmailService) SendRecoveryCode(ctx context.Context, user *models.User, 
 
 func (s *EmailService) SendAccountCreated(ctx context.Context, user *models.User) error {
 	if err := s.ensureEmailConfigured(); err != nil {
+		logger.Error(fmt.Sprintf("Failed to send account created email to %s: %v", user.Email, err))
 		return err
 	}
 	data := struct {
@@ -101,6 +108,7 @@ func (s *EmailService) SendAccountCreated(ctx context.Context, user *models.User
 
 	body, err := s.renderTemplate("account_created.html", data)
 	if err != nil {
+		logger.Error(fmt.Sprintf("Failed to render account_created template: %v", err))
 		return err
 	}
 
@@ -122,6 +130,7 @@ func (s *EmailService) SendAccountCreated(ctx context.Context, user *models.User
 
 func (s *EmailService) SendContractSubmitted(ctx context.Context, contract *models.Contract) error {
 	if err := s.ensureEmailConfigured(); err != nil {
+		logger.Error(fmt.Sprintf("Failed to send contract submitted email to %s: %v", contract.ApplicantUser.Email, err))
 		return err
 	}
 	reserveAmount := 0.0
@@ -159,6 +168,7 @@ func (s *EmailService) SendContractSubmitted(ctx context.Context, contract *mode
 
 	body, err := s.renderTemplate("contract_submitted.html", data)
 	if err != nil {
+		logger.Error(fmt.Sprintf("Failed to render contract_submitted template: %v", err))
 		return err
 	}
 
@@ -180,6 +190,7 @@ func (s *EmailService) SendContractSubmitted(ctx context.Context, contract *mode
 
 func (s *EmailService) SendContractApproved(ctx context.Context, contract *models.Contract, monthlyPayment float64, firstPaymentDate string) error {
 	if err := s.ensureEmailConfigured(); err != nil {
+		logger.Error(fmt.Sprintf("Failed to send contract approved email to %s: %v", contract.ApplicantUser.Email, err))
 		return err
 	}
 	downPayment := 0.0
@@ -213,6 +224,7 @@ func (s *EmailService) SendContractApproved(ctx context.Context, contract *model
 
 	body, err := s.renderTemplate("contract_approved.html", data)
 	if err != nil {
+		logger.Error(fmt.Sprintf("Failed to render contract_approved template: %v", err))
 		return err
 	}
 
@@ -232,8 +244,60 @@ func (s *EmailService) SendContractApproved(ctx context.Context, contract *model
 	return nil
 }
 
+// SendContractRejected sends an email to the contract owner with the rejection reason.
+func (s *EmailService) SendContractRejected(ctx context.Context, contract *models.Contract, reason string) error {
+	if err := s.ensureEmailConfigured(); err != nil {
+		logger.Error(fmt.Sprintf("Failed to send contract rejected email to %s: %v", contract.ApplicantUser.Email, err))
+		return err
+	}
+	projectName := ""
+	lotName := ""
+	if contract.Lot.Project.ID != 0 {
+		projectName = contract.Lot.Project.Name
+	}
+	if contract.Lot.ID != 0 {
+		lotName = contract.Lot.Name
+	}
+	reasonText := reason
+	if reasonText == "" {
+		reasonText = "No se proporcionó una razón específica."
+	}
+	data := struct {
+		Name        string
+		ProjectName string
+		LotName     string
+		Reason      string
+		AppURL      string
+	}{
+		Name:        contract.ApplicantUser.FullName,
+		ProjectName: projectName,
+		LotName:     lotName,
+		Reason:      reasonText,
+		AppURL:      "https://fintera.securexapp.com",
+	}
+	body, err := s.renderTemplate("contract_rejected.html", data)
+	if err != nil {
+		logger.Error(fmt.Sprintf("Failed to render contract_rejected template: %v", err))
+		return err
+	}
+	params := &resend.SendEmailRequest{
+		From:    s.config.FromEmail,
+		To:      []string{contract.ApplicantUser.Email},
+		Subject: "Contrato rechazado",
+		Html:    body,
+	}
+	_, err = s.resendClient.Emails.Send(params)
+	if err != nil {
+		logger.Error(fmt.Sprintf("Failed to send email to %s: %v", contract.ApplicantUser.Email, err))
+		return err
+	}
+	logger.Info(fmt.Sprintf("📧 [Email Sent] To: %s | Subject: Contrato rechazado", contract.ApplicantUser.Email))
+	return nil
+}
+
 func (s *EmailService) SendPaymentApproved(ctx context.Context, payment *models.Payment) error {
 	if err := s.ensureEmailConfigured(); err != nil {
+		logger.Error(fmt.Sprintf("Failed to send payment approved email to %s: %v", payment.Contract.ApplicantUser.Email, err))
 		return err
 	}
 	interest := 0.0
@@ -265,6 +329,7 @@ func (s *EmailService) SendPaymentApproved(ctx context.Context, payment *models.
 
 	body, err := s.renderTemplate("payment_approved.html", data)
 	if err != nil {
+		logger.Error(fmt.Sprintf("Failed to render payment_approved template: %v", err))
 		return err
 	}
 
@@ -292,6 +357,7 @@ type OverduePaymentData struct {
 
 func (s *EmailService) SendOverduePayments(ctx context.Context, user *models.User, payments []models.Payment) error {
 	if err := s.ensureEmailConfigured(); err != nil {
+		logger.Error(fmt.Sprintf("Failed to send overdue payments email to %s: %v", user.Email, err))
 		return err
 	}
 	var paymentData []OverduePaymentData
@@ -315,6 +381,7 @@ func (s *EmailService) SendOverduePayments(ctx context.Context, user *models.Use
 
 	body, err := s.renderTemplate("overdue_payment.html", data)
 	if err != nil {
+		logger.Error(fmt.Sprintf("Failed to render overdue_payment template: %v", err))
 		return err
 	}
 
@@ -336,6 +403,7 @@ func (s *EmailService) SendOverduePayments(ctx context.Context, user *models.Use
 
 func (s *EmailService) SendReservationApproved(ctx context.Context, contract *models.Contract) error {
 	if err := s.ensureEmailConfigured(); err != nil {
+		logger.Error(fmt.Sprintf("Failed to send reservation approved email to %s: %v", contract.ApplicantUser.Email, err))
 		return err
 	}
 	reserveAmount := 0.0
@@ -361,6 +429,7 @@ func (s *EmailService) SendReservationApproved(ctx context.Context, contract *mo
 
 	body, err := s.renderTemplate("reservation_approved.html", data)
 	if err != nil {
+		logger.Error(fmt.Sprintf("Failed to render reservation_approved template: %v", err))
 		return err
 	}
 
