@@ -165,9 +165,23 @@
                     <span class="detail-label">Interés</span>
                     <span class="detail-value">{{.InterestAmount}}</span>
                 </div>
-                <div class="detail-item total-row">
-                    <span class="detail-label">Total Pagado</span>
+                <div class="detail-item">
+                    <span class="detail-label">Total de la cuota</span>
                     <span class="detail-value">{{.TotalAmount}}</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">Monto recibido</span>
+                    <span class="detail-value">{{.PaidAmount}}</span>
+                </div>
+                {{if .HasOverpayment}}
+                <div class="detail-item" style="border-bottom: none;">
+                    <span class="detail-label">Excedente (a favor)</span>
+                    <span class="detail-value" style="color: #059669;">{{.OverpaymentAmount}}</span>
+                </div>
+                {{end}}
+                <div class="detail-item total-row">
+                    <span class="detail-label">Total aplicado</span>
+                    <span class="detail-value">{{.PaidAmount}}</span>
                 </div>
             </div>
 
