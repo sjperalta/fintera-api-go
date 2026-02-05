@@ -53,11 +53,24 @@ func (s *EmailService) ensureEmailConfigured() error {
 	return nil
 }
 
+// validateEmail returns an error if the email address is invalid or empty
+func (s *EmailService) validateEmail(email string) error {
+	if email == "" {
+		return fmt.Errorf("email address is empty")
+	}
+	return nil
+}
+
 func (s *EmailService) SendRecoveryCode(ctx context.Context, user *models.User, code string) error {
 	if err := s.ensureEmailConfigured(); err != nil {
 		logger.Error(fmt.Sprintf("Failed to send recovery code to %s: %v", user.Email, err))
 		return err
 	}
+	if err := s.validateEmail(user.Email); err != nil {
+		logger.Warn(fmt.Sprintf("Skipping recovery email for user %s (ID: %d): %v", user.FullName, user.ID, err))
+		return err
+	}
+
 	data := struct {
 		Name    string
 		Code    string
@@ -67,7 +80,7 @@ func (s *EmailService) SendRecoveryCode(ctx context.Context, user *models.User, 
 		Name:    user.FullName,
 		Code:    code,
 		Minutes: 15,
-		AppURL:  "https://fintera.securexapp.com", // Should come from config
+		AppURL:  s.config.AppURL,
 	}
 
 	body, err := s.renderTemplate("reset_code.html", data)
@@ -98,12 +111,17 @@ func (s *EmailService) SendAccountCreated(ctx context.Context, user *models.User
 		logger.Error(fmt.Sprintf("Failed to send account created email to %s: %v", user.Email, err))
 		return err
 	}
+	if err := s.validateEmail(user.Email); err != nil {
+		logger.Warn(fmt.Sprintf("Skipping account created email for user %s (ID: %d): %v", user.FullName, user.ID, err))
+		return err
+	}
+
 	data := struct {
 		Name   string
 		AppURL string
 	}{
 		Name:   user.FullName,
-		AppURL: "https://fintera.securexapp.com",
+		AppURL: s.config.AppURL,
 	}
 
 	body, err := s.renderTemplate("account_created.html", data)
@@ -133,6 +151,11 @@ func (s *EmailService) SendContractSubmitted(ctx context.Context, contract *mode
 		logger.Error(fmt.Sprintf("Failed to send contract submitted email to %s: %v", contract.ApplicantUser.Email, err))
 		return err
 	}
+	if err := s.validateEmail(contract.ApplicantUser.Email); err != nil {
+		logger.Warn(fmt.Sprintf("Skipping contract submitted email for contract #%d: %v", contract.ID, err))
+		return err
+	}
+
 	reserveAmount := 0.0
 	if contract.ReserveAmount != nil {
 		reserveAmount = *contract.ReserveAmount
@@ -163,7 +186,7 @@ func (s *EmailService) SendContractSubmitted(ctx context.Context, contract *mode
 		ReserveAmount: fmt.Sprintf("L%.2f", reserveAmount),
 		DownPayment:   fmt.Sprintf("L%.2f", downPayment),
 		CreatedAt:     contract.CreatedAt.Format("02/01/2006 15:04"),
-		AppURL:        "https://fintera.securexapp.com",
+		AppURL:        s.config.AppURL,
 	}
 
 	body, err := s.renderTemplate("contract_submitted.html", data)
@@ -193,6 +216,11 @@ func (s *EmailService) SendContractApproved(ctx context.Context, contract *model
 		logger.Error(fmt.Sprintf("Failed to send contract approved email to %s: %v", contract.ApplicantUser.Email, err))
 		return err
 	}
+	if err := s.validateEmail(contract.ApplicantUser.Email); err != nil {
+		logger.Warn(fmt.Sprintf("Skipping contract approved email for contract #%d: %v", contract.ID, err))
+		return err
+	}
+
 	downPayment := 0.0
 	if contract.DownPayment != nil {
 		downPayment = *contract.DownPayment
@@ -229,7 +257,7 @@ func (s *EmailService) SendContractApproved(ctx context.Context, contract *model
 		MonthlyPayment:   fmt.Sprintf("L%.2f", monthlyPayment),
 		FirstPaymentDate: firstPaymentDate,
 		ApprovedAt:       contract.ApprovedAt.Format("02/01/2006 15:04"),
-		AppURL:           "https://fintera.securexapp.com",
+		AppURL:           s.config.AppURL,
 	}
 
 	body, err := s.renderTemplate("contract_approved.html", data)
@@ -260,6 +288,11 @@ func (s *EmailService) SendContractRejected(ctx context.Context, contract *model
 		logger.Error(fmt.Sprintf("Failed to send contract rejected email to %s: %v", contract.ApplicantUser.Email, err))
 		return err
 	}
+	if err := s.validateEmail(contract.ApplicantUser.Email); err != nil {
+		logger.Warn(fmt.Sprintf("Skipping contract rejected email for contract #%d: %v", contract.ID, err))
+		return err
+	}
+
 	projectName := ""
 	lotName := ""
 	if contract.Lot.Project.ID != 0 {
@@ -283,7 +316,7 @@ func (s *EmailService) SendContractRejected(ctx context.Context, contract *model
 		ProjectName: projectName,
 		LotName:     lotName,
 		Reason:      reasonText,
-		AppURL:      "https://fintera.securexapp.com",
+		AppURL:      s.config.AppURL,
 	}
 	body, err := s.renderTemplate("contract_rejected.html", data)
 	if err != nil {
@@ -310,6 +343,11 @@ func (s *EmailService) SendPaymentApproved(ctx context.Context, payment *models.
 		logger.Error(fmt.Sprintf("Failed to send payment approved email to %s: %v", payment.Contract.ApplicantUser.Email, err))
 		return err
 	}
+	if err := s.validateEmail(payment.Contract.ApplicantUser.Email); err != nil {
+		logger.Warn(fmt.Sprintf("Skipping payment approved email for payment #%d: %v", payment.ID, err))
+		return err
+	}
+
 	interest := 0.0
 	if payment.InterestAmount != nil {
 		interest = *payment.InterestAmount
@@ -334,7 +372,7 @@ func (s *EmailService) SendPaymentApproved(ctx context.Context, payment *models.
 		TotalAmount:    fmt.Sprintf("L%.2f", totalAmount),
 		DueDate:        payment.DueDate.Format("02/01/2006"),
 		ApprovedAt:     payment.ApprovedAt.Format("02/01/2006"),
-		AppURL:         "https://fintera.securexapp.com",
+		AppURL:         s.config.AppURL,
 	}
 
 	body, err := s.renderTemplate("payment_approved.html", data)
@@ -363,22 +401,27 @@ func (s *EmailService) SendPaymentRejected(ctx context.Context, contract *models
 	if err := s.ensureEmailConfigured(); err != nil {
 		return err
 	}
+	if err := s.validateEmail(contract.ApplicantUser.Email); err != nil {
+		logger.Warn(fmt.Sprintf("Skipping payment rejected email for contract #%d: %v", contract.ID, err))
+		return err
+	}
+
 	data := struct {
-		Name         string
-		ProjectName  string
-		LotName      string
-		Amount       string
-		DueDate      string
-		Reason       string
-		AppURL       string
+		Name        string
+		ProjectName string
+		LotName     string
+		Amount      string
+		DueDate     string
+		Reason      string
+		AppURL      string
 	}{
-		Name:         contract.ApplicantUser.FullName,
-		ProjectName:  contract.Lot.Project.Name,
-		LotName:      contract.Lot.Name,
-		Amount:       fmt.Sprintf("L%.2f", amount),
-		DueDate:      dueDate,
-		Reason:       reason,
-		AppURL:       "https://fintera.securexapp.com",
+		Name:        contract.ApplicantUser.FullName,
+		ProjectName: contract.Lot.Project.Name,
+		LotName:     contract.Lot.Name,
+		Amount:      fmt.Sprintf("L%.2f", amount),
+		DueDate:     dueDate,
+		Reason:      reason,
+		AppURL:      s.config.AppURL,
 	}
 
 	body, err := s.renderTemplate("payment_rejected.html", data)
@@ -413,6 +456,11 @@ func (s *EmailService) SendOverduePayments(ctx context.Context, user *models.Use
 		logger.Error(fmt.Sprintf("Failed to send overdue payments email to %s: %v", user.Email, err))
 		return err
 	}
+	if err := s.validateEmail(user.Email); err != nil {
+		logger.Warn(fmt.Sprintf("Skipping overdue payments email for user %s (ID: %d): %v", user.FullName, user.ID, err))
+		return err
+	}
+
 	var paymentData []OverduePaymentData
 	for _, p := range payments {
 		paymentData = append(paymentData, OverduePaymentData{
@@ -429,7 +477,7 @@ func (s *EmailService) SendOverduePayments(ctx context.Context, user *models.Use
 	}{
 		Name:     user.FullName,
 		Payments: paymentData,
-		AppURL:   "https://fintera.securexapp.com",
+		AppURL:   s.config.AppURL,
 	}
 
 	body, err := s.renderTemplate("overdue_payment.html", data)
@@ -459,6 +507,11 @@ func (s *EmailService) SendReservationApproved(ctx context.Context, contract *mo
 		logger.Error(fmt.Sprintf("Failed to send reservation approved email to %s: %v", contract.ApplicantUser.Email, err))
 		return err
 	}
+	if err := s.validateEmail(contract.ApplicantUser.Email); err != nil {
+		logger.Warn(fmt.Sprintf("Skipping reservation approved email for contract #%d: %v", contract.ID, err))
+		return err
+	}
+
 	reserveAmount := 0.0
 	if contract.ReserveAmount != nil {
 		reserveAmount = *contract.ReserveAmount
@@ -477,7 +530,7 @@ func (s *EmailService) SendReservationApproved(ctx context.Context, contract *mo
 		ProjectName:   contract.Lot.Project.Name,
 		LotName:       contract.Lot.Name,
 		ReserveAmount: fmt.Sprintf("L%.2f", reserveAmount),
-		AppURL:        "https://fintera.securexapp.com",
+		AppURL:        s.config.AppURL,
 	}
 
 	body, err := s.renderTemplate("reservation_approved.html", data)

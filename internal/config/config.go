@@ -29,6 +29,9 @@ type Config struct {
 	// CORS
 	AllowedOrigins []string
 
+	// General
+	AppURL string
+
 	// Email (Resend)
 	ResendAPIKey string
 	FromEmail    string
@@ -48,6 +51,7 @@ func Load() (*Config, error) {
 		StoragePath:        getEnv("STORAGE_PATH", "./storage"),
 		WorkerCount:        getEnvAsInt("WORKER_COUNT", 5),
 		AllowedOrigins:     getEnvAsSlice("ALLOWED_ORIGINS", []string{"*"}),
+		AppURL:             getEnv("APP_URL", "https://fintera.securexapp.com"),
 		ResendAPIKey:       getEnv("RESEND_API_KEY", ""),
 		FromEmail:          getEnv("FROM_EMAIL", "noreply@fintera.app"),
 		SentryDSN:          getEnv("SENTRY_DSN", ""),
