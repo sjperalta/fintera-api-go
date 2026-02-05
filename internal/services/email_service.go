@@ -198,6 +198,16 @@ func (s *EmailService) SendContractApproved(ctx context.Context, contract *model
 		downPayment = *contract.DownPayment
 	}
 
+	financingTypeEs := map[string]string{
+		models.FinancingTypeDirect: "Directo",
+		models.FinancingTypeBank:   "Bancario",
+		models.FinancingTypeCash:   "Contado",
+	}
+	financingType := contract.FinancingType
+	if val, ok := financingTypeEs[contract.FinancingType]; ok {
+		financingType = val
+	}
+
 	data := struct {
 		Name             string
 		ProjectName      string
@@ -213,7 +223,7 @@ func (s *EmailService) SendContractApproved(ctx context.Context, contract *model
 		Name:             contract.ApplicantUser.FullName,
 		ProjectName:      contract.Lot.Project.Name,
 		LotName:          contract.Lot.Name,
-		FinancingType:    contract.FinancingType,
+		FinancingType:    financingType,
 		PaymentTerm:      contract.PaymentTerm,
 		DownPayment:      fmt.Sprintf("L%.2f", downPayment),
 		MonthlyPayment:   fmt.Sprintf("L%.2f", monthlyPayment),
@@ -346,6 +356,49 @@ func (s *EmailService) SendPaymentApproved(ctx context.Context, payment *models.
 	}
 
 	logger.Info(fmt.Sprintf("📧 [Email Sent] To: %s | Subject: Pago Aprobado", payment.Contract.ApplicantUser.Email))
+	return nil
+}
+
+func (s *EmailService) SendPaymentRejected(ctx context.Context, contract *models.Contract, amount float64, dueDate string, reason string) error {
+	if err := s.ensureEmailConfigured(); err != nil {
+		return err
+	}
+	data := struct {
+		Name         string
+		ProjectName  string
+		LotName      string
+		Amount       string
+		DueDate      string
+		Reason       string
+		AppURL       string
+	}{
+		Name:         contract.ApplicantUser.FullName,
+		ProjectName:  contract.Lot.Project.Name,
+		LotName:      contract.Lot.Name,
+		Amount:       fmt.Sprintf("L%.2f", amount),
+		DueDate:      dueDate,
+		Reason:       reason,
+		AppURL:       "https://fintera.securexapp.com",
+	}
+
+	body, err := s.renderTemplate("payment_rejected.html", data)
+	if err != nil {
+		return err
+	}
+
+	params := &resend.SendEmailRequest{
+		From:    s.config.FromEmail,
+		To:      []string{contract.ApplicantUser.Email},
+		Subject: "Pago Rechazado",
+		Html:    body,
+	}
+	_, err = s.resendClient.Emails.Send(params)
+	if err != nil {
+		logger.Error(fmt.Sprintf("Failed to send email to %s: %v", contract.ApplicantUser.Email, err))
+		return err
+	}
+
+	logger.Info(fmt.Sprintf("📧 [Email Sent] To: %s | Subject: Pago Rechazado", contract.ApplicantUser.Email))
 	return nil
 }
 
