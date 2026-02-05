@@ -3956,6 +3956,10 @@ const docTemplate = `{
                 "id": {
                     "type": "integer"
                 },
+                "is_overpayment": {
+                    "description": "true when paid_amount > amount",
+                    "type": "boolean"
+                },
                 "interest_amount": {
                     "type": "number"
                 },

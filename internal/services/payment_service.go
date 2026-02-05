@@ -512,19 +512,8 @@ func (s *PaymentService) GetUserPayments(ctx context.Context, userID uint) ([]mo
 			return nil, err
 		}
 
-		// Append payments, enriching with contract data if needed (though Payment struct usually has ContractID,
-		// if we need full Contract preload, repo might handle it.
-		// For now, let's just collect them. The frontend uses `contract` nested object if available,
-		// but `FindByContract` might not preload it.
-		// Let's manually double check if FindByContract preloads.
-		// Assuming standard GORM usage, usually it doesn't unless specified.
-		// But let's attach the contract object manually to avoid N+1 queries later or frontend issues if expectation is there.
-
-		for i := range payments {
-			payments[i].Contract = contract
-			// Also avoid cyclic reference json issues if any (unlikely with struct)
-		}
-
+		// FindByContract already preloads Contract.Lot.Project, Contract.ApplicantUser, ApprovedByUser.
+		// Do not overwrite payment.Contract so paid_amount and full contract details are preserved.
 		allPayments = append(allPayments, payments...)
 	}
 

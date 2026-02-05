@@ -227,9 +227,6 @@ func (s *AnalyticsService) GetPerformance(ctx context.Context, filters Analytics
 func (s *AnalyticsService) RefreshCache(ctx context.Context) error {
 	logger.Info("[AnalyticsService] Refreshing analytics cache in background...")
 
-	// Notify admins about start
-	s.notifyAdmins(ctx, "Actualización de Estadísticas", "Se ha iniciado el proceso de actualización de analíticas en segundo plano.")
-
 	// Get all projects to refresh their specific caches
 	projects, err := s.projectRepo.FindAll(ctx)
 	if err != nil {
@@ -253,13 +250,7 @@ func (s *AnalyticsService) RefreshCache(ctx context.Context) error {
 	_ = s.analyticsRepo.CleanExpiredCache(ctx)
 
 	logger.Info("[AnalyticsService] Analytics cache refresh completed.")
-
-	// Notify admins about completion
-	_ = s.notificationSvc.NotifyAdmins(ctx, "Estadísticas Actualizadas", "La actualización de analíticas ha finalizado correctamente.", "system")
-
+	// No admin notifications here: job runs every 15 min (and per instance in multi-replica setups),
+	// which would spam admins. Progress is visible in logs.
 	return nil
-}
-
-func (s *AnalyticsService) notifyAdmins(ctx context.Context, title, message string) {
-	_ = s.notificationSvc.NotifyAdmins(ctx, title, message, "system")
 }

@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/sjperalta/fintera-api/internal/jobs"
 	"github.com/sjperalta/fintera-api/internal/models"
@@ -39,6 +40,7 @@ func (s *UserService) List(ctx context.Context, query *repository.ListQuery) ([]
 }
 
 func (s *UserService) Create(ctx context.Context, user *models.User, password string, actorID uint) error {
+	user.Email = strings.ToLower(user.Email)
 	hashedPassword, err := HashPassword(password)
 	if err != nil {
 		return err
@@ -46,6 +48,11 @@ func (s *UserService) Create(ctx context.Context, user *models.User, password st
 	user.EncryptedPassword = hashedPassword
 	if err := s.repo.Create(ctx, user); err != nil {
 		return err
+	}
+	if err := s.emailService.SendAccountCreated(ctx, user); err != nil {
+		// Log but don't fail user creation; welcome email is best-effort
+		// Error is already logged inside SendAccountCreated
+		_ = err
 	}
 	return s.auditSvc.Log(ctx, actorID, "CREATE", "User", user.ID, fmt.Sprintf("Usuario creado: %s (%s) - Rol: %s", user.FullName, user.Email, user.Role), "", "")
 }
@@ -130,4 +137,13 @@ func (s *UserService) UpdateLocale(ctx context.Context, userID uint, locale stri
 	}
 	user.Locale = locale
 	return s.repo.Update(ctx, user)
+}
+
+// ResendConfirmation sends the account-created (welcome/confirmation) email to the user.
+func (s *UserService) ResendConfirmation(ctx context.Context, userID uint) error {
+	user, err := s.repo.FindByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	return s.emailService.SendAccountCreated(ctx, user)
 }

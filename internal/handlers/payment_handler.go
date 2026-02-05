@@ -250,12 +250,35 @@ func (h *PaymentHandler) Reject(c *gin.Context) {
 func (h *PaymentHandler) UploadReceipt(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("payment_id"), 10, 32)
 
+	payment, err := h.paymentService.FindByID(c.Request.Context(), uint(id))
+	if err != nil || payment.ID == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Pago no encontrado"})
+		return
+	}
+
+	currentUserID := h.getUserID(c)
+	currentUserRole := ""
+	if role, exists := c.Get("userRole"); exists {
+		currentUserRole = role.(string)
+	}
+	canUpload := currentUserRole == "admin" || currentUserRole == "seller" ||
+		(payment.Contract.ID != 0 && payment.Contract.ApplicantUserID == currentUserID)
+	if !canUpload {
+		c.JSON(http.StatusForbidden, gin.H{"error": "No tienes permiso para subir comprobante a este pago"})
+		return
+	}
+
 	file, header, err := c.Request.FormFile("receipt")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Archivo requerido"})
 		return
 	}
 	defer file.Close()
+
+	if c.Request.ContentLength > 0 && c.Request.ContentLength > storage.MaxFileSize() {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Archivo demasiado grande"})
+		return
+	}
 
 	if !storage.IsValidContentType(header.Header.Get("Content-Type")) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Tipo de archivo inválido"})
@@ -299,15 +322,21 @@ func (h *PaymentHandler) DownloadReceipt(c *gin.Context) {
 		currentUserRole = role.(string)
 	}
 
+	fullPath, err := h.storage.SafeFullPath(*payment.DocumentPath)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Comprobante no encontrado"})
+		return
+	}
+
 	// Allow if admin or seller
 	if currentUserRole == "admin" || currentUserRole == "seller" {
-		c.File(h.storage.GetFullPath(*payment.DocumentPath))
+		c.File(fullPath)
 		return
 	}
 
 	// Allow if applicant
 	if currentUserID == payment.Contract.ApplicantUserID {
-		c.File(h.storage.GetFullPath(*payment.DocumentPath))
+		c.File(fullPath)
 		return
 	}
 

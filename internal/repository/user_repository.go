@@ -2,7 +2,9 @@ package repository
 
 import (
 	"context"
+	"errors"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/sjperalta/fintera-api/internal/models"
 	"gorm.io/gorm"
 )
@@ -65,7 +67,24 @@ func (r *userRepository) FindByIdentity(ctx context.Context, identity string) (*
 }
 
 func (r *userRepository) Create(ctx context.Context, user *models.User) error {
-	return r.db.WithContext(ctx).Create(user).Error
+	if err := r.db.WithContext(ctx).Create(user).Error; err != nil {
+		if isDuplicateKeyError(err, "users_identity_key") {
+			return errors.New("Ya existe un usuario con este documento de identidad")
+		}
+		if isDuplicateKeyError(err, "users_email_key") {
+			return errors.New("Ya existe un usuario con este correo electrónico")
+		}
+		return err
+	}
+	return nil
+}
+
+func isDuplicateKeyError(err error, constraintName string) bool {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		return pgErr.Code == "23505" && pgErr.ConstraintName == constraintName
+	}
+	return false
 }
 
 func (r *userRepository) Update(ctx context.Context, user *models.User) error {
