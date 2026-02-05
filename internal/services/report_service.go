@@ -3,16 +3,20 @@ package services
 import (
 	"bytes"
 	"context"
+	"embed"
 	"encoding/csv"
 	"fmt"
 	"html/template"
-	"os"
+	"strings"
 	"time"
 
 	"github.com/SebastiaanKlippert/go-wkhtmltopdf"
 	"github.com/sjperalta/fintera-api/internal/models"
 	"github.com/sjperalta/fintera-api/internal/repository"
 )
+
+//go:embed templates/reports/*.html
+var reportTemplates embed.FS
 
 type CommissionReportItem struct {
 	ContractID uint    `json:"contract_id"`
@@ -325,17 +329,11 @@ func (s *ReportService) GenerateOverduePaymentsCSV(ctx context.Context) (*bytes.
 	return b, nil
 }
 
-// Helper to generate PDF from HTML template
+// Helper to generate PDF from HTML template (templates are embedded in the binary)
 func (s *ReportService) generatePDF(templateName string, data interface{}) (*bytes.Buffer, error) {
-	// 1. Parse Template
-	// Try path relative to project root (Prod)
-	tmplPath := fmt.Sprintf("internal/services/templates/reports/%s", templateName)
-	if _, err := os.Stat(tmplPath); os.IsNotExist(err) {
-		// Try path relative to package (Test)
-		tmplPath = fmt.Sprintf("templates/reports/%s", templateName)
-	}
-
-	tmpl, err := template.ParseFiles(tmplPath)
+	// 1. Parse Template from embedded FS
+	tmplPath := "templates/reports/" + templateName
+	tmpl, err := template.ParseFS(reportTemplates, tmplPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse template %s (path: %s): %w", templateName, tmplPath, err)
 	}
@@ -348,6 +346,10 @@ func (s *ReportService) generatePDF(templateName string, data interface{}) (*byt
 	// 2. Convert to PDF using wkhtmltopdf
 	pdfg, err := wkhtmltopdf.NewPDFGenerator()
 	if err != nil {
+		errMsg := err.Error()
+		if strings.Contains(errMsg, "wkhtmltopdf") && (strings.Contains(errMsg, "not found") || strings.Contains(errMsg, "not installed")) {
+			return nil, fmt.Errorf("wkhtmltopdf is required for PDF generation but is not installed. Install it: macOS: brew install --cask wkhtmltopdf (or download from https://wkhtmltopdf.org); Linux: apt-get install wkhtmltopdf. Original error: %w", err)
+		}
 		return nil, fmt.Errorf("failed to create pdf generator: %w", err)
 	}
 
