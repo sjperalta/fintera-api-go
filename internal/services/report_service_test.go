@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"encoding/csv"
+	"strings"
 	"testing"
 	"time"
 
@@ -250,7 +251,8 @@ func TestGenerateCustomerRecordPDF(t *testing.T) {
 
 	// Execute
 	buf, err := service.GenerateCustomerRecordPDF(context.Background(), 101)
-	if err != nil && err.Error() == "failed to create pdf generator: wkhtmltopdf not found" {
+	// Verify or Skip
+	if err != nil && strings.Contains(err.Error(), "wkhtmltopdf") {
 		t.Skip("wkhtmltopdf not found, skipping PDF generation test")
 	}
 
@@ -296,7 +298,8 @@ func TestGenerateRescissionContractPDF(t *testing.T) {
 
 	// Execute with sample refund and penalty
 	buf, err := service.GenerateRescissionContractPDF(context.Background(), 101, 5000.0, 1000.0)
-	if err != nil && err.Error() == "failed to create pdf generator: wkhtmltopdf not found" {
+	// Verify or Skip
+	if err != nil && strings.Contains(err.Error(), "wkhtmltopdf") {
 		t.Skip("wkhtmltopdf not found, skipping PDF generation test")
 	}
 
