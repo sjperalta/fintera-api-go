@@ -373,5 +373,14 @@ func scheduleJobs(worker *jobs.Worker, svcs *services.Services) {
 		return svcs.Contract.ReleaseUnpaidReservations(ctx)
 	})
 
+	// Daily payment reminder emails for active users with active contracts
+	worker.ScheduleEvery(24*time.Hour, func(ctx context.Context) error {
+		logger.Info("[Job] Sending daily payment reminder emails...")
+		if err := svcs.Payment.SendDailyPaymentReminderEmails(ctx); err != nil {
+			return err
+		}
+		return svcs.Payment.SendDailyUpcomingPaymentReminderEmails(ctx)
+	})
+
 	logger.Info("Scheduled recurring jobs")
 }

@@ -9,6 +9,7 @@ import (
 	"github.com/sjperalta/fintera-api/internal/models"
 	"github.com/sjperalta/fintera-api/internal/repository"
 	"github.com/sjperalta/fintera-api/internal/storage"
+	"github.com/sjperalta/fintera-api/pkg/logger"
 )
 
 // RevenuePoint represents a data point in the revenue chart
@@ -306,6 +307,98 @@ func (s *PaymentService) CheckOverduePayments(ctx context.Context) error {
 			models.NotificationTypePaymentOverdue)
 	}
 
+	return nil
+}
+
+// SendDailyPaymentReminderEmails sends overdue payment reminder emails to active users with active contracts.
+// Intended to run once per day. Groups overdue payments by applicant user and sends one email per user.
+func (s *PaymentService) SendDailyPaymentReminderEmails(ctx context.Context) error {
+	payments, err := s.repo.FindOverdueForActiveContracts(ctx)
+	if err != nil {
+		return fmt.Errorf("find overdue for active contracts: %w", err)
+	}
+
+	// Group by applicant user ID
+	byUser := make(map[uint][]models.Payment)
+	for i := range payments {
+		p := &payments[i]
+		if p.Contract.ApplicantUserID == 0 {
+			continue
+		}
+		byUser[p.Contract.ApplicantUserID] = append(byUser[p.Contract.ApplicantUserID], *p)
+	}
+
+	sent := 0
+	for userID, userPayments := range byUser {
+		if len(userPayments) == 0 {
+			continue
+		}
+		user := &userPayments[0].Contract.ApplicantUser
+		if user.ID == 0 {
+			// Preload may not have filled it in some edge case
+			continue
+		}
+		err := s.emailSvc.SendOverduePayments(ctx, user, userPayments)
+		if err != nil {
+			logger.Warn(fmt.Sprintf("[Daily reminder] Failed to send overdue email to user %d: %v", userID, err))
+			continue
+		}
+		paymentIDs := make([]uint, 0, len(userPayments))
+		for _, p := range userPayments {
+			paymentIDs = append(paymentIDs, p.ID)
+		}
+		if err := s.repo.MarkOverdueReminderSent(ctx, paymentIDs); err != nil {
+			logger.Warn(fmt.Sprintf("[Daily reminder] Failed to mark reminder sent for user %d: %v", userID, err))
+		}
+		sent++
+	}
+
+	logger.Info(fmt.Sprintf("[Daily reminder] Sent %d payment reminder email(s) to active users with overdue payments", sent))
+	return nil
+}
+
+// SendDailyUpcomingPaymentReminderEmails sends "payment due tomorrow" reminders to active users with active contracts.
+// Runs once per day. Only includes payments that have not yet had an upcoming reminder sent.
+func (s *PaymentService) SendDailyUpcomingPaymentReminderEmails(ctx context.Context) error {
+	payments, err := s.repo.FindPaymentsDueTomorrowForActiveContracts(ctx)
+	if err != nil {
+		return fmt.Errorf("find payments due tomorrow: %w", err)
+	}
+
+	byUser := make(map[uint][]models.Payment)
+	for i := range payments {
+		p := &payments[i]
+		if p.Contract.ApplicantUserID == 0 {
+			continue
+		}
+		byUser[p.Contract.ApplicantUserID] = append(byUser[p.Contract.ApplicantUserID], *p)
+	}
+
+	sent := 0
+	for userID, userPayments := range byUser {
+		if len(userPayments) == 0 {
+			continue
+		}
+		user := &userPayments[0].Contract.ApplicantUser
+		if user.ID == 0 {
+			continue
+		}
+		err := s.emailSvc.SendUpcomingPayments(ctx, user, userPayments)
+		if err != nil {
+			logger.Warn(fmt.Sprintf("[Daily reminder] Failed to send upcoming payment email to user %d: %v", userID, err))
+			continue
+		}
+		paymentIDs := make([]uint, 0, len(userPayments))
+		for _, p := range userPayments {
+			paymentIDs = append(paymentIDs, p.ID)
+		}
+		if err := s.repo.MarkUpcomingReminderSent(ctx, paymentIDs); err != nil {
+			logger.Warn(fmt.Sprintf("[Daily reminder] Failed to mark upcoming reminder sent for user %d: %v", userID, err))
+		}
+		sent++
+	}
+
+	logger.Info(fmt.Sprintf("[Daily reminder] Sent %d upcoming payment reminder email(s) (due tomorrow)", sent))
 	return nil
 }
 

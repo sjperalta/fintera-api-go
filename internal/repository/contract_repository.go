@@ -238,6 +238,10 @@ type PaymentRepository interface {
 	DeleteByContract(ctx context.Context, contractID uint) error
 	List(ctx context.Context, query *ListQuery) ([]models.Payment, int64, error)
 	FindOverdue(ctx context.Context) ([]models.Payment, error)
+	FindOverdueForActiveContracts(ctx context.Context) ([]models.Payment, error)
+	FindPaymentsDueTomorrowForActiveContracts(ctx context.Context) ([]models.Payment, error)
+	MarkOverdueReminderSent(ctx context.Context, paymentIDs []uint) error
+	MarkUpcomingReminderSent(ctx context.Context, paymentIDs []uint) error
 	FindPendingByUser(ctx context.Context, userID uint) ([]models.Payment, error)
 	FindPaidByMonth(ctx context.Context, month, year int) ([]models.Payment, error)
 	GetMonthlyStats(ctx context.Context) (*PaymentStats, error)
@@ -391,6 +395,63 @@ func (r *paymentRepository) FindOverdue(ctx context.Context) ([]models.Payment, 
 		Order("due_date ASC").
 		Find(&payments).Error
 	return payments, err
+}
+
+// FindOverdueForActiveContracts returns overdue payments only for active contracts (approved, active=true)
+// and active users (status=active, not discarded). Excludes payments that had a reminder sent in the last 7 days
+// to avoid spamming. Preloads Contract.Lot and Contract.ApplicantUser for email templates.
+func (r *paymentRepository) FindOverdueForActiveContracts(ctx context.Context) ([]models.Payment, error) {
+	var payments []models.Payment
+	err := r.db.WithContext(ctx).
+		Joins("JOIN contracts ON contracts.id = payments.contract_id AND contracts.status = ? AND contracts.active = ?",
+			models.ContractStatusApproved, true).
+		Joins("JOIN users ON users.id = contracts.applicant_user_id AND users.status = ? AND users.discarded_at IS NULL",
+			models.StatusActive).
+		Where("payments.status = ? AND payments.due_date < CURRENT_DATE", models.PaymentStatusPending).
+		Where("(payments.overdue_reminder_sent_at IS NULL OR payments.overdue_reminder_sent_at < CURRENT_TIMESTAMP - INTERVAL '7 days')").
+		Preload("Contract.Lot").
+		Preload("Contract.ApplicantUser").
+		Order("payments.due_date ASC").
+		Find(&payments).Error
+	return payments, err
+}
+
+// FindPaymentsDueTomorrowForActiveContracts returns pending payments with due_date = tomorrow,
+// for active contracts and active users, that have not yet had an upcoming reminder sent.
+func (r *paymentRepository) FindPaymentsDueTomorrowForActiveContracts(ctx context.Context) ([]models.Payment, error) {
+	var payments []models.Payment
+	err := r.db.WithContext(ctx).
+		Joins("JOIN contracts ON contracts.id = payments.contract_id AND contracts.status = ? AND contracts.active = ?",
+			models.ContractStatusApproved, true).
+		Joins("JOIN users ON users.id = contracts.applicant_user_id AND users.status = ? AND users.discarded_at IS NULL",
+			models.StatusActive).
+		Where("payments.status = ? AND payments.due_date = CURRENT_DATE + INTERVAL '1 day'", models.PaymentStatusPending).
+		Where("payments.upcoming_reminder_sent_at IS NULL").
+		Preload("Contract.Lot").
+		Preload("Contract.ApplicantUser").
+		Order("payments.due_date ASC").
+		Find(&payments).Error
+	return payments, err
+}
+
+// MarkOverdueReminderSent sets overdue_reminder_sent_at to now for the given payment IDs.
+func (r *paymentRepository) MarkOverdueReminderSent(ctx context.Context, paymentIDs []uint) error {
+	if len(paymentIDs) == 0 {
+		return nil
+	}
+	return r.db.WithContext(ctx).Model(&models.Payment{}).
+		Where("id IN ?", paymentIDs).
+		Update("overdue_reminder_sent_at", gorm.Expr("CURRENT_TIMESTAMP")).Error
+}
+
+// MarkUpcomingReminderSent sets upcoming_reminder_sent_at to now for the given payment IDs.
+func (r *paymentRepository) MarkUpcomingReminderSent(ctx context.Context, paymentIDs []uint) error {
+	if len(paymentIDs) == 0 {
+		return nil
+	}
+	return r.db.WithContext(ctx).Model(&models.Payment{}).
+		Where("id IN ?", paymentIDs).
+		Update("upcoming_reminder_sent_at", gorm.Expr("CURRENT_TIMESTAMP")).Error
 }
 
 func (r *paymentRepository) FindPendingByUser(ctx context.Context, userID uint) ([]models.Payment, error) {

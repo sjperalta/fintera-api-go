@@ -520,6 +520,62 @@ func (s *EmailService) SendOverduePayments(ctx context.Context, user *models.Use
 	return nil
 }
 
+// SendUpcomingPayments sends a "payment due tomorrow" reminder to the user.
+func (s *EmailService) SendUpcomingPayments(ctx context.Context, user *models.User, payments []models.Payment) error {
+	if err := s.ensureEmailConfigured(); err != nil {
+		logger.Error(fmt.Sprintf("Failed to send upcoming payment email to %s: %v", user.Email, err))
+		return err
+	}
+	if err := s.validateEmail(user.Email); err != nil {
+		logger.Warn(fmt.Sprintf("Skipping upcoming payment email for user %s (ID: %d): %v", user.FullName, user.ID, err))
+		return err
+	}
+
+	var paymentData []OverduePaymentData
+	for _, p := range payments {
+		paymentData = append(paymentData, OverduePaymentData{
+			LotName: p.Contract.Lot.Name,
+			Amount:  fmt.Sprintf("L%.2f", p.Amount),
+			DueDate: p.DueDate.Format("02/01/2006"),
+		})
+	}
+
+	data := struct {
+		Name     string
+		Payments []OverduePaymentData
+		AppURL   string
+	}{
+		Name:     user.FullName,
+		Payments: paymentData,
+		AppURL:   s.config.AppURL,
+	}
+
+	body, err := s.renderTemplate("upcoming_payment.html", data)
+	if err != nil {
+		logger.Error(fmt.Sprintf("Failed to render upcoming_payment template: %v", err))
+		return err
+	}
+
+	subject := "Recordatorio: Pago(s) vencen mañana"
+	if len(payments) > 1 {
+		subject = fmt.Sprintf("Recordatorio: %d pagos vencen mañana", len(payments))
+	}
+	params := &resend.SendEmailRequest{
+		From:    s.config.FromEmail,
+		To:      []string{user.Email},
+		Subject: subject,
+		Html:    body,
+	}
+	_, err = s.resendClient.Emails.Send(params)
+	if err != nil {
+		logger.Error(fmt.Sprintf("Failed to send email to %s: %v", user.Email, err))
+		return err
+	}
+
+	logger.Info(fmt.Sprintf("📧 [Email Sent] To: %s | Subject: %s", user.Email, subject))
+	return nil
+}
+
 func (s *EmailService) SendReservationApproved(ctx context.Context, contract *models.Contract) error {
 	if err := s.ensureEmailConfigured(); err != nil {
 		logger.Error(fmt.Sprintf("Failed to send reservation approved email to %s: %v", contract.ApplicantUser.Email, err))

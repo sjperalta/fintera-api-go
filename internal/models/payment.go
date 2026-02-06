@@ -20,10 +20,12 @@ type Payment struct {
 	InterestAmount   *float64   `gorm:"type:decimal(10,2)" json:"interest_amount"`
 	ApprovedAt       *time.Time `gorm:"index" json:"approved_at"`
 	ApprovedByUserID *uint      `gorm:"index" json:"approved_by_user_id"`
-	RejectionReason  *string    `gorm:"type:text" json:"rejection_reason,omitempty"`
-	DocumentPath     *string    `json:"-"` // Receipt file path
-	CreatedAt        time.Time  `gorm:"index" json:"created_at"`
-	UpdatedAt        time.Time  `json:"updated_at"`
+	RejectionReason       *string    `gorm:"type:text" json:"rejection_reason,omitempty"`
+	DocumentPath          *string    `json:"-"` // Receipt file path
+	OverdueReminderSentAt   *time.Time `gorm:"column:overdue_reminder_sent_at" json:"-"`   // When overdue reminder email was last sent
+	UpcomingReminderSentAt  *time.Time `gorm:"column:upcoming_reminder_sent_at" json:"-"`  // When "due tomorrow" reminder was sent
+	CreatedAt               time.Time  `gorm:"index" json:"created_at"`
+	UpdatedAt             time.Time  `json:"updated_at"`
 
 	// Associations
 	Contract       Contract `gorm:"foreignKey:ContractID" json:"contract,omitempty"`
