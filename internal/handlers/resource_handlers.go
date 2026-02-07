@@ -280,7 +280,23 @@ func (h *LotHandler) Index(c *gin.Context) {
 		responses = append(responses, l.ToResponse())
 	}
 
-	c.JSON(http.StatusOK, gin.H{"lots": responses, "pagination": gin.H{"total": total}})
+	totalPages := int64(1)
+	if query.PerPage > 0 {
+		totalPages = (total + int64(query.PerPage) - 1) / int64(query.PerPage)
+		if totalPages < 1 {
+			totalPages = 1
+		}
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"lots": responses,
+		"pagination": gin.H{
+			"page":        query.Page,
+			"per_page":    query.PerPage,
+			"total":       total,
+			"total_pages": totalPages,
+			"total_items": total,
+		},
+	})
 }
 
 // @Summary Get Lot

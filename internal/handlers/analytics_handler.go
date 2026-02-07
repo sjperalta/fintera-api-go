@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/sjperalta/fintera-api/internal/models"
+
 	"github.com/gin-gonic/gin"
 	"github.com/sjperalta/fintera-api/internal/services"
 )
@@ -75,6 +77,24 @@ func (h *AnalyticsHandler) Performance(c *gin.Context) {
 	c.JSON(http.StatusOK, perf)
 }
 
+// @Summary Get Seller Performance
+// @Description Returns performance metrics for all sellers
+// @Tags Analytics
+// @Produce json
+// @Param start_date query string false "Start Date (ISO 8601)"
+// @Param end_date query string false "End Date (ISO 8601)"
+// @Security BearerAuth
+// @Router /analytics/sellers [get]
+func (h *AnalyticsHandler) Sellers(c *gin.Context) {
+	filters := h.parseFilters(c)
+	sellers, err := h.analyticsSvc.GetSellerPerformance(c.Request.Context(), filters)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, sellers)
+}
+
 // @Summary Export Analytics Data
 // @Description Generates and downloads analytics reports in various formats
 // @Tags Analytics
@@ -125,8 +145,8 @@ func (h *AnalyticsHandler) Export(c *gin.Context) {
 	c.Data(http.StatusOK, "application/octet-stream", data)
 }
 
-func (h *AnalyticsHandler) parseFilters(c *gin.Context) services.AnalyticsFilters {
-	var filters services.AnalyticsFilters
+func (h *AnalyticsHandler) parseFilters(c *gin.Context) models.AnalyticsFilters {
+	var filters models.AnalyticsFilters
 
 	if pidStr := c.Query("project_id"); pidStr != "" {
 		pid, _ := strconv.ParseUint(pidStr, 10, 64)

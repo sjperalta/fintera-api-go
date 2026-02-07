@@ -32,22 +32,7 @@ func NewAnalyticsService(
 	}
 }
 
-type AnalyticsFilters struct {
-	ProjectID        *uint
-	StartDate        *time.Time
-	EndDate          *time.Time
-	RevenueTimeframe string
-	Year             *int
-}
-
-// HasDateFilter returns true when any date or year filter is set (e.g. from the analytics page).
-// When true, cache is bypassed so filtered results are always fresh. Dashboard/seller calls
-// without these params continue to use cache.
-func (f AnalyticsFilters) HasDateFilter() bool {
-	return f.StartDate != nil || f.EndDate != nil || f.Year != nil
-}
-
-func (s *AnalyticsService) GetOverview(ctx context.Context, filters AnalyticsFilters) (*models.AnalyticsOverview, error) {
+func (s *AnalyticsService) GetOverview(ctx context.Context, filters models.AnalyticsFilters) (*models.AnalyticsOverview, error) {
 	cacheKey := "analytics_overview"
 	if filters.RevenueTimeframe != "" {
 		cacheKey += "_" + filters.RevenueTimeframe
@@ -114,7 +99,7 @@ func getPreviousPeriod(startDate, endDate *time.Time) (prevStart, prevEnd *time.
 	return &prevStartTime, &prevEndTime
 }
 
-func (s *AnalyticsService) computeOverview(ctx context.Context, filters AnalyticsFilters) (*models.AnalyticsOverview, error) {
+func (s *AnalyticsService) computeOverview(ctx context.Context, filters models.AnalyticsFilters) (*models.AnalyticsOverview, error) {
 	// Current period stats
 	totalRevenue, err := s.analyticsRepo.GetTotalRevenue(ctx, filters.ProjectID, filters.StartDate, filters.EndDate)
 	if err != nil {
@@ -213,7 +198,7 @@ func (s *AnalyticsService) GetDistribution(ctx context.Context, projectID *uint)
 	return dist, nil
 }
 
-func (s *AnalyticsService) GetPerformance(ctx context.Context, filters AnalyticsFilters) ([]models.ProjectPerformance, error) {
+func (s *AnalyticsService) GetPerformance(ctx context.Context, filters models.AnalyticsFilters) ([]models.ProjectPerformance, error) {
 	cacheKey := "analytics_performance"
 	if filters.ProjectID != nil {
 		cacheKey += fmt.Sprintf("_project_%d", *filters.ProjectID)
@@ -230,7 +215,7 @@ func (s *AnalyticsService) GetPerformance(ctx context.Context, filters Analytics
 		}
 	}
 
-	perf, err := s.analyticsRepo.GetProjectPerformance(ctx, filters.ProjectID, filters.StartDate, filters.EndDate, filters.Year, filters.RevenueTimeframe)
+	perf, err := s.analyticsRepo.GetProjectPerformance(ctx, filters)
 	if err != nil {
 		return nil, err
 	}
@@ -240,6 +225,32 @@ func (s *AnalyticsService) GetPerformance(ctx context.Context, filters Analytics
 	}
 
 	return perf, nil
+}
+
+func (s *AnalyticsService) GetSellerPerformance(ctx context.Context, filters models.AnalyticsFilters) ([]models.SellerPerformance, error) {
+	cacheKey := "analytics_sellers"
+
+	// Bypass cache when date/year filters are present
+	if !filters.HasDateFilter() {
+		cached, err := s.analyticsRepo.GetCache(ctx, cacheKey, nil)
+		if err == nil && cached != nil {
+			var sellers []models.SellerPerformance
+			if err := json.Unmarshal(cached.Data, &sellers); err == nil {
+				return sellers, nil
+			}
+		}
+	}
+
+	sellers, err := s.analyticsRepo.GetSellerPerformance(ctx, filters)
+	if err != nil {
+		return nil, err
+	}
+
+	if !filters.HasDateFilter() {
+		_ = s.analyticsRepo.SetCache(ctx, cacheKey, nil, sellers, 30*time.Minute)
+	}
+
+	return sellers, nil
 }
 
 func (s *AnalyticsService) RefreshCache(ctx context.Context) error {
@@ -253,14 +264,14 @@ func (s *AnalyticsService) RefreshCache(ctx context.Context) error {
 	}
 
 	// Refresh global stats
-	_, _ = s.GetOverview(ctx, AnalyticsFilters{})
+	_, _ = s.GetOverview(ctx, models.AnalyticsFilters{})
 	_, _ = s.GetDistribution(ctx, nil)
-	_, _ = s.GetPerformance(ctx, AnalyticsFilters{})
+	_, _ = s.GetPerformance(ctx, models.AnalyticsFilters{})
 
 	// Refresh each project stats
 	for _, p := range projects {
 		pid := p.ID
-		_, _ = s.GetOverview(ctx, AnalyticsFilters{ProjectID: &pid})
+		_, _ = s.GetOverview(ctx, models.AnalyticsFilters{ProjectID: &pid})
 		_, _ = s.GetDistribution(ctx, &pid)
 	}
 

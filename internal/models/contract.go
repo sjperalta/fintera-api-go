@@ -6,27 +6,30 @@ import (
 
 // Contract represents a sales contract for a lot
 type Contract struct {
-	ID              uint       `gorm:"primaryKey" json:"id"`
-	LotID           uint       `gorm:"not null;index" json:"lot_id"`
-	CreatorID       *uint      `gorm:"index" json:"creator_id"`
-	ApplicantUserID uint       `gorm:"not null;index" json:"applicant_user_id"`
-	PaymentTerm     int        `gorm:"not null" json:"payment_term"`
-	FinancingType   string     `gorm:"not null" json:"financing_type"`
-	Status          string     `gorm:"default:pending;index" json:"status"`
-	Amount          *float64   `gorm:"type:decimal" json:"amount"`
-	Balance         *float64   `gorm:"type:decimal" json:"balance"`
-	DownPayment     *float64   `gorm:"type:decimal" json:"down_payment"`
-	ReserveAmount   *float64   `gorm:"type:decimal" json:"reserve_amount"`
-	MaxPaymentDate  *time.Time `gorm:"type:date" json:"max_payment_date"` // for bank/cash: date by which customer will pay the rest
-	Currency        string     `gorm:"default:HNL;not null" json:"currency"`
-	ApprovedAt      *time.Time `gorm:"index" json:"approved_at"`
-	Active          bool       `gorm:"default:false;index" json:"active"`
-	Note            *string    `gorm:"type:text" json:"note"`
-	RejectionReason *string    `gorm:"type:text" json:"rejection_reason"`
-	DocumentPaths   *string    `gorm:"type:text" json:"document_paths"` // JSON string of document paths
-	ClosedAt        *time.Time `json:"closed_at"`
-	CreatedAt       time.Time  `json:"created_at"`
-	UpdatedAt       time.Time  `json:"updated_at"`
+	ID              uint     `gorm:"primaryKey" json:"id"`
+	LotID           uint     `gorm:"not null;index" json:"lot_id"`
+	CreatorID       *uint    `gorm:"index" json:"creator_id"`
+	ApplicantUserID uint     `gorm:"not null;index" json:"applicant_user_id"`
+	PaymentTerm     int      `gorm:"not null" json:"payment_term"`
+	FinancingType   string   `gorm:"not null" json:"financing_type"`
+	Status          string   `gorm:"default:pending;index" json:"status"`
+	Amount          *float64 `gorm:"type:decimal" json:"amount"`
+	Balance         *float64 `gorm:"type:decimal" json:"balance"`
+	// Commission
+	CommissionAmount float64    `json:"commission_amount" gorm:"type:decimal(15,2);default:0"`
+	DownPayment      *float64   `gorm:"type:decimal" json:"down_payment"`
+	ReserveAmount    *float64   `gorm:"type:decimal" json:"reserve_amount"`
+	MaxPaymentDate   *time.Time `gorm:"type:date" json:"max_payment_date"` // for bank/cash: date by which customer will pay the rest
+	Currency         string     `gorm:"default:HNL;not null" json:"currency"`
+	ApprovedAt       *time.Time `gorm:"index" json:"approved_at"`
+	Active           bool       `gorm:"default:false;index" json:"active"`
+	Note             *string    `gorm:"type:text" json:"note"`
+	RejectionReason  *string    `gorm:"type:text" json:"rejection_reason"`
+	TotalPaid        float64    `gorm:"-" json:"total_paid"`             // Transient field for list view
+	DocumentPaths    *string    `gorm:"type:text" json:"document_paths"` // JSON string of document paths
+	ClosedAt         *time.Time `json:"closed_at"`
+	CreatedAt        time.Time  `json:"created_at"`
+	UpdatedAt        time.Time  `json:"updated_at"`
 
 	// Associations
 	Lot           Lot                   `gorm:"foreignKey:LotID" json:"lot,omitempty"`
@@ -205,12 +208,17 @@ func (c *Contract) ToResponse() ContractResponse {
 
 	// Calculate totals from payments
 	var totalInterest, totalPaid float64
-	for _, p := range c.Payments {
-		if p.InterestAmount != nil {
-			totalInterest += *p.InterestAmount
-		}
-		if p.Status == PaymentStatusPaid && p.PaidAmount != nil {
-			totalPaid += *p.PaidAmount
+
+	if c.TotalPaid > 0 {
+		totalPaid = c.TotalPaid
+	} else {
+		for _, p := range c.Payments {
+			if p.InterestAmount != nil {
+				totalInterest += *p.InterestAmount
+			}
+			if p.Status == PaymentStatusPaid && p.PaidAmount != nil {
+				totalPaid += *p.PaidAmount
+			}
 		}
 	}
 	resp.TotalInterestCollected = totalInterest

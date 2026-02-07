@@ -21,6 +21,7 @@ type ContractRepository interface {
 	List(ctx context.Context, query *ContractQuery) ([]models.Contract, int64, error)
 	FindActiveByLot(ctx context.Context, lotID uint) (*models.Contract, error)
 	FindPendingReservations(ctx context.Context, olderThan int) ([]models.Contract, error)
+	GetStats(ctx context.Context) (*ContractStats, error)
 }
 
 // ContractQuery extends ListQuery with contract-specific filters
@@ -194,10 +195,92 @@ func (r *contractRepository) List(ctx context.Context, query *ContractQuery) ([]
 		Preload("Lot.Project").
 		Preload("ApplicantUser").
 		Preload("Creator").
-		Preload("Payments").
 		Find(&contracts).Error
 
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// Calculate TotalPaid for each contract using aggregation
+	if len(contracts) > 0 {
+		var contractIDs []uint
+		for _, c := range contracts {
+			contractIDs = append(contractIDs, c.ID)
+		}
+
+		type Result struct {
+			ContractID uint
+			Total      float64
+		}
+		var results []Result
+
+		// Sum paid_amount for payments with status 'paid'
+		// Note: We use paid_amount as it's the actual transaction amount
+		if err := r.db.Model(&models.Payment{}).
+			Select("contract_id, COALESCE(SUM(paid_amount), 0) as total").
+			Where("contract_id IN ? AND status = ?", contractIDs, models.PaymentStatusPaid).
+			Group("contract_id").
+			Scan(&results).Error; err == nil {
+
+			// Map results to contracts
+			resultMap := make(map[uint]float64)
+			for _, res := range results {
+				resultMap[res.ContractID] = res.Total
+			}
+
+			for i := range contracts {
+				if val, ok := resultMap[contracts[i].ID]; ok {
+					contracts[i].TotalPaid = val
+				}
+			}
+		}
+	}
+
 	return contracts, total, err
+}
+
+// ContractStats holds the count of contracts by status
+type ContractStats struct {
+	Total    int64 `json:"total"`
+	Pending  int64 `json:"pending"`
+	Approved int64 `json:"approved"`
+	Rejected int64 `json:"rejected"`
+}
+
+func (r *contractRepository) GetStats(ctx context.Context) (*ContractStats, error) {
+	stats := &ContractStats{}
+
+	// Execute a single query to get counts by status
+	rows, err := r.db.WithContext(ctx).
+		Model(&models.Contract{}).
+		Select("status, count(*) as count").
+		Group("status").
+		Rows()
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var total int64
+	for rows.Next() {
+		var status string
+		var count int64
+		if err := rows.Scan(&status, &count); err != nil {
+			return nil, err
+		}
+		total += count
+		switch status {
+		case models.ContractStatusPending:
+			stats.Pending = count
+		case models.ContractStatusApproved:
+			stats.Approved = count
+		case models.ContractStatusRejected:
+			stats.Rejected = count
+		}
+	}
+	stats.Total = total
+
+	return stats, nil
 }
 
 func (r *contractRepository) FindActiveByLot(ctx context.Context, lotID uint) (*models.Contract, error) {

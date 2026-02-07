@@ -73,6 +73,23 @@ func (h *ContractHandler) Index(c *gin.Context) {
 	})
 }
 
+// @Summary Get Contract Stats
+// @Description Get contract count statistics (Total, Pending, Approved, Rejected)
+// @Tags Contracts
+// @Accept json
+// @Produce json
+// @Success 200 {object} repository.ContractStats
+// @Security BearerAuth
+// @Router /contracts/stats [get]
+func (h *ContractHandler) GetStats(c *gin.Context) {
+	stats, err := h.contractService.GetStats(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, stats)
+}
+
 // @Summary Get Contract
 // @Description Get a contract by ID
 // @Tags Contracts

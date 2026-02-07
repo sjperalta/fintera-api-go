@@ -64,6 +64,10 @@ func (s *ContractService) List(ctx context.Context, query *repository.ContractQu
 	return s.repo.List(ctx, query)
 }
 
+func (s *ContractService) GetStats(ctx context.Context) (*repository.ContractStats, error) {
+	return s.repo.GetStats(ctx)
+}
+
 func (s *ContractService) Create(ctx context.Context, contract *models.Contract) error {
 	// Verify lot is available
 	lot, err := s.lotRepo.FindByID(ctx, contract.LotID)
@@ -72,6 +76,27 @@ func (s *ContractService) Create(ctx context.Context, contract *models.Contract)
 	}
 	if !lot.IsAvailable() {
 		return errors.New("el lote no está disponible")
+	}
+
+	// Determine commission rate based on financing type
+	var commissionRate float64
+	// Lot repository already preloads Project
+	if lot.Project.ID != 0 {
+		switch contract.FinancingType {
+		case models.FinancingTypeDirect:
+			commissionRate = lot.Project.CommissionRateDirect
+		case models.FinancingTypeBank:
+			commissionRate = lot.Project.CommissionRateBank
+		case models.FinancingTypeCash:
+			commissionRate = lot.Project.CommissionRateCash
+		default:
+			commissionRate = lot.Project.CommissionRateDirect
+		}
+	}
+
+	// Calculate Commission Amount
+	if contract.CommissionAmount == 0 && contract.Amount != nil {
+		contract.CommissionAmount = *contract.Amount * (commissionRate / 100)
 	}
 
 	// Create contract

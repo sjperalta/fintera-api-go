@@ -62,10 +62,14 @@ func (s *ProjectService) Update(ctx context.Context, project *models.Project, ac
 	}
 
 	// Check if any of these fields changed: Unidad de Medida, Precio por Unidad, Tasa de Interés, Tasa de Comisión
+	// Check if any of these fields changed: Unidad de Medida, Precio por Unidad, Tasa de Interés, Tasas de Comisión
 	measurementUnitChanged := existing.MeasurementUnit != project.MeasurementUnit
 	pricePerUnitChanged := existing.PricePerSquareUnit != project.PricePerSquareUnit
 	interestRateChanged := existing.InterestRate != project.InterestRate
-	commissionRateChanged := existing.CommissionRate != project.CommissionRate
+	commissionRateChanged := existing.CommissionRate != project.CommissionRate ||
+		existing.CommissionRateDirect != project.CommissionRateDirect ||
+		existing.CommissionRateBank != project.CommissionRateBank ||
+		existing.CommissionRateCash != project.CommissionRateCash
 	rateFieldsChanged := measurementUnitChanged || pricePerUnitChanged || interestRateChanged || commissionRateChanged
 
 	if rateFieldsChanged {
