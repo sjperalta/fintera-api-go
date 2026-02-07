@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"mime/multipart"
 	"strings"
 
 	"github.com/sjperalta/fintera-api/internal/jobs"
@@ -13,17 +14,21 @@ import (
 // UserService handles user-related business logic
 type UserService struct {
 	repo         repository.UserRepository
+	contractRepo repository.ContractRepository
 	worker       *jobs.Worker
 	emailService *EmailService
 	auditSvc     *AuditService
+	imageService *ImageService
 }
 
-func NewUserService(repo repository.UserRepository, worker *jobs.Worker, emailService *EmailService, auditSvc *AuditService) *UserService {
+func NewUserService(repo repository.UserRepository, contractRepo repository.ContractRepository, worker *jobs.Worker, emailService *EmailService, auditSvc *AuditService, imageService *ImageService) *UserService {
 	return &UserService{
 		repo:         repo,
+		contractRepo: contractRepo,
 		worker:       worker,
 		emailService: emailService,
 		auditSvc:     auditSvc,
+		imageService: imageService,
 	}
 }
 
@@ -77,10 +82,19 @@ func (s *UserService) Update(ctx context.Context, user *models.User, actorID uin
 }
 
 func (s *UserService) Delete(ctx context.Context, id uint, actorID uint) error {
-	if err := s.repo.SoftDelete(ctx, id); err != nil {
+	// Check for active contracts
+	hasActive, err := s.contractRepo.HasActiveContracts(ctx, id)
+	if err != nil {
+		return fmt.Errorf("error checking user contracts: %w", err)
+	}
+	if hasActive {
+		return fmt.Errorf("cannot delete user with active contracts")
+	}
+
+	if err := s.repo.Delete(ctx, id); err != nil {
 		return err
 	}
-	return s.auditSvc.Log(ctx, actorID, "DELETE", "User", id, "Usuario eliminado (soft delete)", "", "")
+	return s.auditSvc.Log(ctx, actorID, "DELETE", "User", id, "Usuario eliminado permanentemente (hard delete)", "", "")
 }
 
 func (s *UserService) Restore(ctx context.Context, id uint, actorID uint) error {
@@ -160,4 +174,31 @@ func (s *UserService) ResendConfirmation(ctx context.Context, userID uint) error
 		return err
 	}
 	return s.emailService.SendAccountCreated(ctx, user, "")
+}
+
+func (s *UserService) UpdateProfilePicture(ctx context.Context, userID uint, file multipart.File, header *multipart.FileHeader, actorID uint) (*models.User, error) {
+	// Process image
+	originalPath, thumbPath, err := s.imageService.ProcessAndSaveProfilePicture(file, header)
+	if err != nil {
+		return nil, err
+	}
+
+	user, err := s.repo.FindByID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	user.ProfilePicture = &originalPath
+	user.ProfilePictureThumb = &thumbPath
+
+	if err := s.repo.Update(ctx, user); err != nil {
+		return nil, err
+	}
+
+	if err := s.auditSvc.Log(ctx, actorID, "UPDATE_PICTURE", "User", userID, "Foto de perfil actualizada", "", ""); err != nil {
+		// Log error but don't fail the request
+		_ = err
+	}
+
+	return user, nil
 }

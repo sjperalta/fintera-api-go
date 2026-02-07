@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -90,18 +91,37 @@ func TestCreateUserRequestBinding(t *testing.T) {
 
 type mockUserRepo struct {
 	repository.UserRepository
-	mockList func(ctx context.Context, query *repository.ListQuery) ([]models.User, int64, error)
+	mockList     func(ctx context.Context, query *repository.ListQuery) ([]models.User, int64, error)
+	mockFindByID func(ctx context.Context, id uint) (*models.User, error)
+	mockUpdate   func(ctx context.Context, user *models.User) error
 }
 
 func (m *mockUserRepo) List(ctx context.Context, query *repository.ListQuery) ([]models.User, int64, error) {
-	return m.mockList(ctx, query)
+	if m.mockList != nil {
+		return m.mockList(ctx, query)
+	}
+	return []models.User{}, 0, nil
+}
+
+func (m *mockUserRepo) FindByID(ctx context.Context, id uint) (*models.User, error) {
+	if m.mockFindByID != nil {
+		return m.mockFindByID(ctx, id)
+	}
+	return nil, nil
+}
+
+func (m *mockUserRepo) Update(ctx context.Context, user *models.User) error {
+	if m.mockUpdate != nil {
+		return m.mockUpdate(ctx, user)
+	}
+	return nil
 }
 
 func TestUserHandler_Index_DefaultStatus(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	mockRepo := &mockUserRepo{}
-	userService := services.NewUserService(mockRepo, nil, nil, nil)
+	userService := services.NewUserService(mockRepo, nil, nil, nil, nil, nil) // Updated with nil ContractRepo and ImageService
 	handler := NewUserHandler(userService, nil)
 
 	var capturedStatus string
@@ -130,4 +150,59 @@ func TestUserHandler_Index_DefaultStatus(t *testing.T) {
 	c.Request, _ = http.NewRequest("GET", "/users?status=inactive", nil)
 	handler.Index(c)
 	assert.Equal(t, "inactive", capturedStatus)
+}
+
+func TestUploadProfilePicture(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	// Create temp dir for uploads
+	tempDir := t.TempDir()
+	imageService := services.NewImageService(tempDir)
+
+	mockRepo := &mockUserRepo{}
+	userService := services.NewUserService(mockRepo, nil, nil, nil, nil, imageService) // Updated with nil ContractRepo
+	handler := NewUserHandler(userService, nil)
+
+	userID := uint(1)
+	mockUser := &models.User{ID: userID, Email: "test@example.com"}
+
+	mockRepo.mockFindByID = func(ctx context.Context, id uint) (*models.User, error) {
+		if id == userID {
+			return mockUser, nil
+		}
+		return nil, nil
+	}
+
+	mockRepo.mockUpdate = func(ctx context.Context, user *models.User) error {
+		assert.NotNil(t, user.ProfilePicture)
+		assert.NotNil(t, user.ProfilePictureThumb)
+		return nil
+	}
+
+	// Mock file upload
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	part, err := writer.CreateFormFile("image", "test.jpg")
+	assert.NoError(t, err)
+	// Write some fake jpeg header so image validation passes?
+	// ImageService uses image.Decode. "fake image content" will fail Decode.
+	// We need a real valid image bytes.
+	// Or we can mock ImageService? But we are using real ImageService with temp dir.
+	// So we need real image bytes.
+	// Let's explicitly fail decode if we want, or try to provide minimal valid png.
+	// Minimal PNG:
+	minimalPNG := []byte{137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0, 0, 0, 1, 8, 2, 0, 0, 0, 144, 119, 83, 222, 0, 0, 0, 12, 73, 64, 84, 8, 215, 99, 248, 255, 255, 63, 0, 5, 254, 2, 254, 220, 204, 89, 231, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130}
+	part.Write(minimalPNG)
+	writer.Close()
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request, _ = http.NewRequest("POST", "/users/1/picture", body)
+	c.Request.Header.Set("Content-Type", writer.FormDataContentType())
+	c.Params = []gin.Param{{Key: "user_id", Value: "1"}}
+	c.Set("userID", uint(1)) // Mock authenticated user (self update)
+
+	handler.UploadProfilePicture(c)
+
+	assert.Equal(t, http.StatusOK, w.Code)
 }

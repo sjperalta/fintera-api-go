@@ -22,6 +22,7 @@ type ContractRepository interface {
 	FindActiveByLot(ctx context.Context, lotID uint) (*models.Contract, error)
 	FindPendingReservations(ctx context.Context, olderThan int) ([]models.Contract, error)
 	GetStats(ctx context.Context) (*ContractStats, error)
+	HasActiveContracts(ctx context.Context, userID uint) (bool, error)
 }
 
 // ContractQuery extends ListQuery with contract-specific filters
@@ -302,6 +303,16 @@ func (r *contractRepository) FindPendingReservations(ctx context.Context, olderT
 		Preload("ApplicantUser").
 		Find(&contracts).Error
 	return contracts, err
+}
+
+func (r *contractRepository) HasActiveContracts(ctx context.Context, userID uint) (bool, error) {
+	var count int64
+	err := r.db.WithContext(ctx).
+		Model(&models.Contract{}).
+		Where("applicant_user_id = ?", userID).
+		Where("active = ? OR status IN ?", true, []string{models.ContractStatusApproved, models.ContractStatusSigned}).
+		Count(&count).Error
+	return count > 0, err
 }
 
 // PaymentStats holds monthly payment statistics
