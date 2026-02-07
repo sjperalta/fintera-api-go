@@ -5,6 +5,21 @@ import (
 	"time"
 )
 
+type AnalyticsFilters struct {
+	ProjectID        *uint
+	StartDate        *time.Time
+	EndDate          *time.Time
+	RevenueTimeframe string
+	Year             *int
+}
+
+// HasDateFilter returns true when any date or year filter is set (e.g. from the analytics page).
+// When true, cache is bypassed so filtered results are always fresh. Dashboard/seller calls
+// without these params continue to use cache.
+func (f AnalyticsFilters) HasDateFilter() bool {
+	return f.StartDate != nil || f.EndDate != nil || f.Year != nil
+}
+
 // AnalyticsCache represents a cached analytics result
 type AnalyticsCache struct {
 	ID        uint            `gorm:"primaryKey" json:"id"`
@@ -61,4 +76,12 @@ type ProjectPerformance struct {
 	ProjectName       string    `json:"project_name"`
 	GrowthPercentage  float64   `json:"growth_percentage"`
 	WeeklyPerformance []float64 `json:"weekly_performance"`
+}
+
+// SellerPerformance represents performance metrics for a seller
+type SellerPerformance struct {
+	SellerID        uint    `json:"seller_id"`
+	SellerName      string  `json:"seller_name"`
+	TotalSales      float64 `json:"total_sales"`
+	ActiveContracts int     `json:"active_contracts"`
 }

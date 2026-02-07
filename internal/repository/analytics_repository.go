@@ -24,7 +24,8 @@ type AnalyticsRepository interface {
 	GetOccupancyRate(ctx context.Context, projectID *uint, endDate *time.Time) (float64, error)
 	GetRevenueTrend(ctx context.Context, projectID *uint, timeframe string, year *int) ([]models.RevenueTrendPoint, error)
 	GetLotDistribution(ctx context.Context, projectID *uint) (*models.LotDistribution, error)
-	GetProjectPerformance(ctx context.Context, projectID *uint, startDate, endDate *time.Time, year *int, revenueTimeframe string) ([]models.ProjectPerformance, error)
+	GetProjectPerformance(ctx context.Context, filters models.AnalyticsFilters) ([]models.ProjectPerformance, error)
+	GetSellerPerformance(ctx context.Context, filters models.AnalyticsFilters) ([]models.SellerPerformance, error)
 }
 
 type analyticsRepository struct {
@@ -353,10 +354,10 @@ func (r *analyticsRepository) GetLotDistribution(ctx context.Context, projectID 
 	return &dist, nil
 }
 
-func (r *analyticsRepository) GetProjectPerformance(ctx context.Context, projectID *uint, startDate, endDate *time.Time, year *int, revenueTimeframe string) ([]models.ProjectPerformance, error) {
+func (r *analyticsRepository) GetProjectPerformance(ctx context.Context, filters models.AnalyticsFilters) ([]models.ProjectPerformance, error) {
 	query := r.db.WithContext(ctx).Preload("Lots")
-	if projectID != nil {
-		query = query.Where("id = ?", *projectID)
+	if filters.ProjectID != nil {
+		query = query.Where("id = ?", *filters.ProjectID)
 	}
 	var projects []models.Project
 	err := query.Find(&projects).Error
@@ -393,4 +394,49 @@ func (r *analyticsRepository) GetProjectPerformance(ctx context.Context, project
 	}
 
 	return performance, nil
+}
+
+func (r *analyticsRepository) GetSellerPerformance(ctx context.Context, filters models.AnalyticsFilters) ([]models.SellerPerformance, error) {
+	var results []models.SellerPerformance
+
+	// Subquery to get total paid sales per seller
+	query := r.db.WithContext(ctx).Table("users").
+		Select("users.id as seller_id, users.full_name as seller_name, COALESCE(SUM(payments.paid_amount), 0) as total_sales").
+		Joins("LEFT JOIN contracts ON contracts.creator_id = users.id").
+		Joins("LEFT JOIN payments ON payments.contract_id = contracts.id AND payments.status = ?", models.PaymentStatusPaid).
+		Where("users.role = ?", models.RoleSeller)
+
+	if filters.StartDate != nil {
+		query = query.Where("payments.payment_date >= ?", *filters.StartDate)
+	}
+	if filters.EndDate != nil {
+		query = query.Where("payments.payment_date <= ?", *filters.EndDate)
+	}
+
+	query = query.Group("users.id, users.full_name")
+
+	err := query.Scan(&results).Error
+	if err != nil {
+		return nil, err
+	}
+
+	// For each seller, get count of active contracts
+	for i := range results {
+		var count int64
+		contractQuery := r.db.WithContext(ctx).Model(&models.Contract{}).
+			Where("creator_id = ? AND status = ? AND active = ?", results[i].SellerID, models.ContractStatusApproved, true)
+
+		if filters.StartDate != nil {
+			contractQuery = contractQuery.Where("approved_at >= ?", *filters.StartDate)
+		}
+		if filters.EndDate != nil {
+			contractQuery = contractQuery.Where("approved_at <= ?", *filters.EndDate)
+		}
+
+		if err := contractQuery.Count(&count).Error; err == nil {
+			results[i].ActiveContracts = int(count)
+		}
+	}
+
+	return results, nil
 }

@@ -194,7 +194,6 @@ func (r *contractRepository) List(ctx context.Context, query *ContractQuery) ([]
 		Preload("Lot.Project").
 		Preload("ApplicantUser").
 		Preload("Creator").
-		Preload("Payments").
 		Find(&contracts).Error
 
 	return contracts, total, err

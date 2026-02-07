@@ -11,6 +11,7 @@ import (
 
 	"github.com/getsentry/sentry-go"
 	sentrygin "github.com/getsentry/sentry-go/gin"
+	"github.com/gin-contrib/gzip"
 	_ "github.com/joho/godotenv/autoload"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
@@ -174,6 +175,7 @@ func setupRouter(h *handlers.Handlers, cfg *config.Config) *gin.Engine {
 	router.Use(gin.Recovery())
 	router.Use(middleware.RequestLogger())
 	router.Use(middleware.CORS(cfg.AllowedOrigins))
+	router.Use(gzip.Gzip(gzip.DefaultCompression))
 
 	// API v1 routes
 	v1 := router.Group("/api/v1")
@@ -290,6 +292,7 @@ func setupRouter(h *handlers.Handlers, cfg *config.Config) *gin.Engine {
 					analytics.GET("/overview", h.Analytics.Overview)
 					analytics.GET("/distribution", h.Analytics.Distribution)
 					analytics.GET("/performance", h.Analytics.Performance)
+					analytics.GET("/sellers", h.Analytics.Sellers)
 					analytics.GET("/export", h.Analytics.Export)
 				}
 
