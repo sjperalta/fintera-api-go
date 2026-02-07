@@ -268,6 +268,7 @@ func setupRouter(h *handlers.Handlers, cfg *config.Config) *gin.Engine {
 
 				// Contract viewing (seller can view all contracts)
 				sellerAdmin.GET("/contracts", h.Contract.Index)
+				sellerAdmin.GET("/contracts/stats", h.Contract.GetStats)
 				sellerAdmin.GET("/projects/:project_id/lots/:lot_id/contracts/:contract_id", h.Contract.Show)
 				sellerAdmin.GET("/projects/:project_id/lots/:lot_id/contracts/:contract_id/ledger", h.Contract.Ledger)
 
