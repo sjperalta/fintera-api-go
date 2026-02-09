@@ -156,7 +156,8 @@
         <div class="content">
             <h1>Contrato rechazado</h1>
             <p>Hola {{.Name}},</p>
-            <p>Lamentamos informarte que tu solicitud de contrato para <strong>{{.ProjectName}}</strong>{{if .LotName}} – Lote <strong>{{.LotName}}</strong>{{end}} ha sido rechazada.</p>
+            <p>Lamentamos informarte que tu solicitud de contrato para <strong>{{.ProjectName}}</strong>{{if .LotName}}
+                – Lote <strong>{{.LotName}}</strong>{{end}} ha sido rechazada.</p>
 
             <div class="reason-box">
                 <strong>Razón del rechazo:</strong>
@@ -178,8 +179,9 @@
                 {{end}}
             </div>
 
-            <p>Si tienes dudas o deseas corregir la información para una nueva solicitud, puedes iniciar sesión en la plataforma.</p>
-            <a href="{{.AppURL}}/dashboard" class="button">Ir al panel</a>
+            <p>Si tienes dudas o deseas corregir la información para una nueva solicitud, puedes iniciar sesión en la
+                plataforma.</p>
+            <a href="{{.AppURL}}/signin" class="button">Ir al panel</a>
         </div>
         <div class="footer">
             <p>&copy; 2026 Fintera. Todos los derechos reservados.</p>
