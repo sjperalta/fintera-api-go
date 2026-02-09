@@ -195,9 +195,11 @@ func (s *UserService) UpdateProfilePicture(ctx context.Context, userID uint, fil
 		return nil, err
 	}
 
-	if err := s.auditSvc.Log(ctx, actorID, "UPDATE_PICTURE", "User", userID, "Foto de perfil actualizada", "", ""); err != nil {
-		// Log error but don't fail the request
-		_ = err
+	if s.auditSvc != nil {
+		if err := s.auditSvc.Log(ctx, actorID, "UPDATE_PICTURE", "User", userID, "Foto de perfil actualizada", "", ""); err != nil {
+			// Log error but don't fail the request
+			_ = err
+		}
 	}
 
 	return user, nil
