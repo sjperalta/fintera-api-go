@@ -160,7 +160,7 @@ func TestUploadProfilePicture(t *testing.T) {
 	imageService := services.NewImageService(tempDir)
 
 	mockRepo := &mockUserRepo{}
-	userService := services.NewUserService(mockRepo, nil, nil, nil, nil, imageService) // Updated with nil ContractRepo
+	userService := services.NewUserService(mockRepo, nil, nil, nil, nil, imageService)
 	handler := NewUserHandler(userService, nil)
 
 	userID := uint(1)
@@ -182,16 +182,26 @@ func TestUploadProfilePicture(t *testing.T) {
 	// Mock file upload
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
-	part, err := writer.CreateFormFile("image", "test.jpg")
+
+	// Minimal valid 1x1 PNG
+	minimalPNG := []byte{
+		0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, // Magic
+		0x00, 0x00, 0x00, 0x0d, // IHDR length
+		0x49, 0x48, 0x44, 0x52, // IHDR chunk type
+		0x00, 0x00, 0x00, 0x01, // Width: 1
+		0x00, 0x00, 0x00, 0x01, // Height: 1
+		0x08, 0x06, 0x00, 0x00, 0x00, // Bit depth, Color type, Compression, Filter, Interlace
+		0x1f, 0x15, 0xc4, 0x89, // CRC
+		0x00, 0x00, 0x00, 0x0a, // IDAT length
+		0x49, 0x44, 0x41, 0x54, // IDAT chunk type
+		0x78, 0x9c, 0x63, 0x00, 0x01, 0x00, 0x00, 0x05, 0x00, 0x01, // Compressed data
+		0x0d, 0x0a, 0x2d, 0xb4, // CRC
+		0x00, 0x00, 0x00, 0x00, // IEND length
+		0x49, 0x45, 0x4e, 0x44, // IEND chunk type
+		0xae, 0x42, 0x60, 0x82, // CRC
+	}
+	part, err := writer.CreateFormFile("image", "test.png")
 	assert.NoError(t, err)
-	// Write some fake jpeg header so image validation passes?
-	// ImageService uses image.Decode. "fake image content" will fail Decode.
-	// We need a real valid image bytes.
-	// Or we can mock ImageService? But we are using real ImageService with temp dir.
-	// So we need real image bytes.
-	// Let's explicitly fail decode if we want, or try to provide minimal valid png.
-	// Minimal PNG:
-	minimalPNG := []byte{137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0, 0, 0, 1, 8, 2, 0, 0, 0, 144, 119, 83, 222, 0, 0, 0, 12, 73, 64, 84, 8, 215, 99, 248, 255, 255, 63, 0, 5, 254, 2, 254, 220, 204, 89, 231, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130}
 	part.Write(minimalPNG)
 	writer.Close()
 
@@ -199,6 +209,7 @@ func TestUploadProfilePicture(t *testing.T) {
 	c, _ := gin.CreateTestContext(w)
 	c.Request, _ = http.NewRequest("POST", "/users/1/picture", body)
 	c.Request.Header.Set("Content-Type", writer.FormDataContentType())
+
 	c.Params = []gin.Param{{Key: "user_id", Value: "1"}}
 	c.Set("userID", uint(1)) // Mock authenticated user (self update)
 

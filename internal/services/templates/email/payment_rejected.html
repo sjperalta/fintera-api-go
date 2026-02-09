@@ -156,7 +156,9 @@
         <div class="content">
             <h1>Pago rechazado</h1>
             <p>Hola {{.Name}},</p>
-            <p>Lamentamos informarte que tu pago de <strong>{{.Amount}}</strong> para <strong>{{.ProjectName}}</strong>{{if .LotName}} – Lote <strong>{{.LotName}}</strong>{{end}} (vencimiento: {{.DueDate}}) ha sido rechazado.</p>
+            <p>Lamentamos informarte que tu pago de <strong>{{.Amount}}</strong> para
+                <strong>{{.ProjectName}}</strong>{{if .LotName}} – Lote <strong>{{.LotName}}</strong>{{end}}
+                (vencimiento: {{.DueDate}}) ha sido rechazado.</p>
 
             {{if .Reason}}
             <div class="reason-box">
@@ -189,7 +191,7 @@
             </div>
 
             <p>Si tienes dudas o deseas subir un nuevo comprobante, puedes iniciar sesión en la plataforma.</p>
-            <a href="{{.AppURL}}/dashboard" class="button">Ir al panel</a>
+            <a href="{{.AppURL}}/signin" class="button">Ir al panel</a>
         </div>
         <div class="footer">
             <p>&copy; 2026 Fintera. Todos los derechos reservados.</p>

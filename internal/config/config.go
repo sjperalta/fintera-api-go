@@ -33,8 +33,9 @@ type Config struct {
 	AppURL string
 
 	// Email (Resend)
-	ResendAPIKey string
-	FromEmail    string
+	ResendAPIKey             string
+	FromEmail                string
+	EnableEmailNotifications bool
 
 	// Sentry
 	SentryDSN string
@@ -43,18 +44,19 @@ type Config struct {
 // Load reads configuration from environment variables
 func Load() (*Config, error) {
 	cfg := &Config{
-		Port:               getEnv("PORT", "8080"),
-		Environment:        getEnv("ENVIRONMENT", "development"),
-		DatabaseURL:        getEnv("DATABASE_URL", ""),
-		JWTSecret:          getEnv("JWT_SECRET", ""),
-		JWTExpirationHours: getEnvAsInt("JWT_EXPIRATION_HOURS", 24),
-		StoragePath:        getEnv("STORAGE_PATH", "./storage"),
-		WorkerCount:        getEnvAsInt("WORKER_COUNT", 5),
-		AllowedOrigins:     getEnvAsSlice("ALLOWED_ORIGINS", []string{"*"}),
-		AppURL:             getEnv("APP_URL", "https://fintera.securexapp.com"),
-		ResendAPIKey:       getEnv("RESEND_API_KEY", ""),
-		FromEmail:          getEnv("FROM_EMAIL", "noreply@fintera.app"),
-		SentryDSN:          getEnv("SENTRY_DSN", ""),
+		Port:                     getEnv("PORT", "8080"),
+		Environment:              getEnv("ENVIRONMENT", "development"),
+		DatabaseURL:              getEnv("DATABASE_URL", ""),
+		JWTSecret:                getEnv("JWT_SECRET", ""),
+		JWTExpirationHours:       getEnvAsInt("JWT_EXPIRATION_HOURS", 24),
+		StoragePath:              getEnv("STORAGE_PATH", "./storage"),
+		WorkerCount:              getEnvAsInt("WORKER_COUNT", 5),
+		AllowedOrigins:           getEnvAsSlice("ALLOWED_ORIGINS", []string{"*"}),
+		AppURL:                   getEnv("APP_URL", "https://fintera.securexapp.com"),
+		ResendAPIKey:             getEnv("RESEND_API_KEY", ""),
+		FromEmail:                getEnv("FROM_EMAIL", "noreply@fintera.app"),
+		EnableEmailNotifications: getEnvAsBool("ENABLE_EMAIL_NOTIFICATIONS", false),
+		SentryDSN:                getEnv("SENTRY_DSN", ""),
 	}
 
 	// Validate required configuration
@@ -89,6 +91,19 @@ func getEnvAsInt(key string, defaultValue int) int {
 		return defaultValue
 	}
 	value, err := strconv.Atoi(valueStr)
+	if err != nil {
+		return defaultValue
+	}
+	return value
+}
+
+// getEnvAsBool reads an environment variable as boolean
+func getEnvAsBool(key string, defaultValue bool) bool {
+	valueStr := getEnv(key, "")
+	if valueStr == "" {
+		return defaultValue
+	}
+	value, err := strconv.ParseBool(valueStr)
 	if err != nil {
 		return defaultValue
 	}
