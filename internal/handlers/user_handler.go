@@ -297,7 +297,11 @@ func (h *UserHandler) Delete(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("user_id"), 10, 32)
 	actorID := middleware.GetUserID(c)
 	if err := h.userService.Delete(c.Request.Context(), uint(id), actorID); err != nil {
-		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+		status := http.StatusUnprocessableEntity
+		if err.Error() == "cannot delete user with active contracts" {
+			status = http.StatusConflict
+		}
+		c.JSON(status, gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "Usuario eliminado exitosamente"})
@@ -609,7 +613,7 @@ type UpdatePasswordWithCodeRequest struct {
 	NewPassword string `json:"new_password" binding:"required,min=6"`
 }
 
-// @Summary Reset Password
+// @Summary Update Password with Code
 // @Description Reset password using recovery code
 // @Tags Users
 // @Accept json
@@ -636,4 +640,46 @@ func (h *UserHandler) UpdatePasswordWithCode(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Contraseña actualizada"})
+}
+
+// @Summary Upload Profile Picture
+// @Description Upload user profile picture
+// @Tags Users
+// @Accept multipart/form-data
+// @Produce json
+// @Param user_id path int true "User ID"
+// @Param image formData file true "Image file"
+// @Success 200 {object} models.UserResponse
+// @Router /users/{user_id}/picture [post]
+func (h *UserHandler) UploadProfilePicture(c *gin.Context) {
+	userID, err := strconv.ParseUint(c.Param("user_id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID de usuario inválido"})
+		return
+	}
+
+	// Limit upload size (e.g., 5MB)
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 5<<20)
+
+	file, header, err := c.Request.FormFile("image")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No se ha subido ninguna imagen o el archivo es demasiado grande"})
+		return
+	}
+	defer file.Close()
+
+	actorID := middleware.GetUserID(c)
+	// Check permissions: Admin or Owner
+	if middleware.GetUserRole(c) != "admin" && actorID != uint(userID) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "No tienes permiso para actualizar este usuario"})
+		return
+	}
+
+	user, err := h.userService.UpdateProfilePicture(c.Request.Context(), uint(userID), file, header, actorID)
+	if err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"user": user.ToResponse(), "message": "Foto de perfil actualizada"})
 }

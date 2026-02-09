@@ -106,7 +106,7 @@ func (r *userRepository) SetRecoveryCode(ctx context.Context, userID uint, code 
 }
 
 func (r *userRepository) Delete(ctx context.Context, id uint) error {
-	return r.db.WithContext(ctx).Delete(&models.User{}, id).Error
+	return r.db.WithContext(ctx).Unscoped().Delete(&models.User{}, id).Error
 }
 
 func (r *userRepository) SoftDelete(ctx context.Context, id uint) error {

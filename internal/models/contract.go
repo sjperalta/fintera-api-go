@@ -49,6 +49,7 @@ const (
 	ContractStatusPending   = "pending"
 	ContractStatusSubmitted = "submitted"
 	ContractStatusApproved  = "approved"
+	ContractStatusSigned    = "signed"
 	ContractStatusRejected  = "rejected"
 	ContractStatusCancelled = "cancelled"
 	ContractStatusClosed    = "closed"

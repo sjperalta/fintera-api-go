@@ -31,9 +31,12 @@ func NewServices(repos *repository.Repositories, worker *jobs.Worker, storage *s
 	emailSvc := NewEmailService(cfg)
 	auditSvc := NewAuditService(db) // Create AuditService instance
 
+	// Create ImageService
+	imageSvc := NewImageService(cfg.StoragePath + "/uploads")
+
 	return &Services{
 		Auth:         NewAuthService(repos.User, repos.RefreshToken, cfg),
-		User:         NewUserService(repos.User, worker, emailSvc, auditSvc),
+		User:         NewUserService(repos.User, repos.Contract, worker, emailSvc, auditSvc, imageSvc),
 		Project:      NewProjectService(repos.Project, repos.Lot, auditSvc),
 		Lot:          NewLotService(repos.Lot, repos.Project, auditSvc),
 		Contract:     NewContractService(repos.Contract, repos.Lot, repos.User, repos.Payment, repos.Ledger, notificationSvc, emailSvc, auditSvc, worker),

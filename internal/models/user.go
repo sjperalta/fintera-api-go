@@ -33,6 +33,8 @@ type User struct {
 	CreditScore         int        `gorm:"default:0" json:"credit_score"`
 	Locale              string     `gorm:"default:es" json:"locale"`
 	MustChangePassword  bool       `gorm:"column:must_change_password;default:false" json:"must_change_password"`
+	ProfilePicture      *string    `json:"profile_picture"`
+	ProfilePictureThumb *string    `gorm:"column:profile_picture_thumb" json:"profile_picture_thumb"`
 	CreatedAt           time.Time  `json:"created_at"`
 	UpdatedAt           time.Time  `json:"updated_at"`
 
@@ -120,6 +122,8 @@ type UserResponse struct {
 	CreditScore         int        `json:"credit_score"`
 	Locale              string     `json:"locale"`
 	MustChangePassword  bool       `json:"must_change_password"`
+	ProfilePicture      *string    `json:"profile_picture"`
+	ProfilePictureThumb *string    `json:"profile_picture_thumb"`
 	ConfirmedAt         *time.Time `json:"confirmed_at"`
 	CreatedAt           time.Time  `json:"created_at"`
 	UpdatedAt           time.Time  `json:"updated_at"`
@@ -128,20 +132,22 @@ type UserResponse struct {
 // ToResponse converts User to UserResponse
 func (u *User) ToResponse() UserResponse {
 	return UserResponse{
-		ID:                 u.ID,
-		Email:              u.Email,
-		FullName:           u.FullName,
-		Phone:              u.Phone,
-		Role:               u.Role,
-		Status:             u.Status,
-		Identity:           u.Identity,
-		RTN:                u.RTN,
-		Address:            u.Address,
-		CreditScore:        u.CreditScore,
-		Locale:             u.Locale,
-		MustChangePassword: u.MustChangePassword,
-		ConfirmedAt:        u.ConfirmedAt,
-		CreatedAt:          u.CreatedAt,
-		UpdatedAt:          u.UpdatedAt,
+		ID:                  u.ID,
+		Email:               u.Email,
+		FullName:            u.FullName,
+		Phone:               u.Phone,
+		Role:                u.Role,
+		Status:              u.Status,
+		Identity:            u.Identity,
+		RTN:                 u.RTN,
+		Address:             u.Address,
+		CreditScore:         u.CreditScore,
+		Locale:              u.Locale,
+		MustChangePassword:  u.MustChangePassword,
+		ProfilePicture:      u.ProfilePicture,
+		ProfilePictureThumb: u.ProfilePictureThumb,
+		ConfirmedAt:         u.ConfirmedAt,
+		CreatedAt:           u.CreatedAt,
+		UpdatedAt:           u.UpdatedAt,
 	}
 }

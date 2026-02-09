@@ -177,6 +177,11 @@ func setupRouter(h *handlers.Handlers, cfg *config.Config) *gin.Engine {
 	router.Use(middleware.CORS(cfg.AllowedOrigins))
 	router.Use(gzip.Gzip(gzip.DefaultCompression))
 
+	// Serve uploaded files
+	// Verify that StoragePath is correct; it's usually an absolute path or relative to CWD
+	// We want to serve /uploads from {StoragePath}/uploads
+	router.Static("/uploads", cfg.StoragePath+"/uploads")
+
 	// API v1 routes
 	v1 := router.Group("/api/v1")
 	{
@@ -320,6 +325,7 @@ func setupRouter(h *handlers.Handlers, cfg *config.Config) *gin.Engine {
 			protected.PATCH("/users/:user_id/change_password", h.User.ChangePassword)
 			protected.POST("/users/:user_id/resend_confirmation", h.User.ResendConfirmation)
 			protected.PATCH("/users/:user_id/update_locale", h.User.UpdateLocale)
+			protected.POST("/users/:user_id/picture", h.User.UploadProfilePicture)
 
 			// Contract creation (users can create their own contracts)
 			protected.POST("/projects/:project_id/lots/:lot_id/contracts", h.Contract.Create)

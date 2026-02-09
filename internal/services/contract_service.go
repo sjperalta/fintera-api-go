@@ -121,11 +121,20 @@ func (s *ContractService) Create(ctx context.Context, contract *models.Contract)
 	lot.Status = models.LotStatusReserved
 	s.lotRepo.Update(ctx, lot)
 
+	// Retrieve applicant for notification
+	applicant, err := s.userRepo.FindByID(ctx, contract.ApplicantUserID)
+	if err != nil {
+		return fmt.Errorf("failed to retrieve applicant: %w", err)
+	}
+
 	// Notify admins asynchronously
+	notificationMsg := fmt.Sprintf("Se ha recibido una nueva solicitud de contrato\nProyecto: %s\nLote: %s\nSolicitante: %s",
+		lot.Project.Name, lot.Name, applicant.FullName)
+
 	s.worker.EnqueueAsync(func(ctx context.Context) error {
 		return s.notificationSvc.NotifyAdmins(ctx,
 			"Nueva solicitud de contrato",
-			"Se ha recibido una nueva solicitud de contrato",
+			notificationMsg,
 			models.NotificationTypeContractApproved)
 	})
 
