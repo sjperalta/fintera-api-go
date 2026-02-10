@@ -111,6 +111,26 @@ func (c *Contract) CalculateBalance() float64 {
 	return total
 }
 
+// CalculateCommission calculates the commission based on the project's rates and financing type
+func (c *Contract) CalculateCommission() float64 {
+	// Need amount and project info to calculate
+	if c.Amount == nil || c.Lot.Project.ID == 0 {
+		return 0
+	}
+
+	rate := c.Lot.Project.CommissionRateDirect // Default
+	switch c.FinancingType {
+	case FinancingTypeDirect:
+		rate = c.Lot.Project.CommissionRateDirect
+	case FinancingTypeBank:
+		rate = c.Lot.Project.CommissionRateBank
+	case FinancingTypeCash:
+		rate = c.Lot.Project.CommissionRateCash
+	}
+
+	return *c.Amount * (rate / 100)
+}
+
 // ContractResponse is the JSON response format for contracts
 type ContractResponse struct {
 	ID                     uint                          `json:"id"`

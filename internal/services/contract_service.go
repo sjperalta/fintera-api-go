@@ -78,25 +78,13 @@ func (s *ContractService) Create(ctx context.Context, contract *models.Contract)
 		return errors.New("el lote no está disponible")
 	}
 
-	// Determine commission rate based on financing type
-	var commissionRate float64
-	// Lot repository already preloads Project
-	if lot.Project.ID != 0 {
-		switch contract.FinancingType {
-		case models.FinancingTypeDirect:
-			commissionRate = lot.Project.CommissionRateDirect
-		case models.FinancingTypeBank:
-			commissionRate = lot.Project.CommissionRateBank
-		case models.FinancingTypeCash:
-			commissionRate = lot.Project.CommissionRateCash
-		default:
-			commissionRate = lot.Project.CommissionRateDirect
-		}
-	}
-
 	// Calculate Commission Amount
 	if contract.CommissionAmount == 0 && contract.Amount != nil {
-		contract.CommissionAmount = *contract.Amount * (commissionRate / 100)
+		// Ensure temporary link to lot/project for calculation is set if not already
+		if contract.Lot.ID == 0 {
+			contract.Lot = *lot
+		}
+		contract.CommissionAmount = contract.CalculateCommission()
 	}
 
 	// Create contract
