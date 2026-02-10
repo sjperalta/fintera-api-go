@@ -53,6 +53,21 @@ migrate-create:
 	@read -p "Migration name: " name; \
 	migrate create -ext sql -dir internal/database/migrations -seq $$name
 
+# Drop daabase and run seed and migrations
+drop-db-seed-migrate:
+	psql "$(subst fintera_api_development,postgres,$(DATABASE_URL))" -c "DROP DATABASE IF EXISTS fintera_api_development;"
+	psql "$(subst fintera_api_development,postgres,$(DATABASE_URL))" -c "CREATE DATABASE fintera_api_development;"
+	migrate -path internal/database/migrations -database "$(DATABASE_URL)" up
+	psql "$(DATABASE_URL)" -f internal/database/seeds/seeds.sql
+
+# Drop daabase and run seed and migrations and force drop database
+drop-db-seed-migrate-force:
+	psql "$(subst fintera_api_development,postgres,$(DATABASE_URL))" -c "SELECT pg_terminate_backend(pg_stat_activity.pid) FROM pg_stat_activity WHERE pg_stat_activity.datname = 'fintera_api_development' AND pid <> pg_backend_pid();"
+	psql "$(subst fintera_api_development,postgres,$(DATABASE_URL))" -c "DROP DATABASE IF EXISTS fintera_api_development;"
+	psql "$(subst fintera_api_development,postgres,$(DATABASE_URL))" -c "CREATE DATABASE fintera_api_development;"
+	migrate -path internal/database/migrations -database "$(DATABASE_URL)" up
+	psql "$(DATABASE_URL)" -f internal/database/seeds/seeds.sql
+
 # Run database seeds
 seed:
 	@if [ -z "$(DATABASE_URL)" ]; then echo "DATABASE_URL is not set"; exit 1; fi

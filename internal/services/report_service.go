@@ -19,14 +19,15 @@ import (
 var reportTemplates embed.FS
 
 type CommissionReportItem struct {
-	ContractID uint    `json:"contract_id"`
-	ClientName string  `json:"client_name"`
-	Project    string  `json:"project"`
-	Lot        string  `json:"lot"`
-	Amount     float64 `json:"amount"`
-	Date       string  `json:"date"`
-	Seller     string  `json:"seller"`
-	Commission float64 `json:"commission"`
+	ContractID    uint    `json:"contract_id"`
+	ClientName    string  `json:"client_name"`
+	Project       string  `json:"project"`
+	Lot           string  `json:"lot"`
+	FinancingType string  `json:"financing_type"`
+	Amount        float64 `json:"amount"`
+	Date          string  `json:"date"`
+	Seller        string  `json:"seller"`
+	Commission    float64 `json:"commission"`
 }
 
 type ReportService struct {
@@ -57,11 +58,15 @@ func (s *ReportService) GenerateCommissions(ctx context.Context, startDate, endD
 		listQuery.Filters["approved_to"] = endDate
 	}
 
+	// Include both Approved and Closed contracts
+	listQuery.Filters["status_in"] = fmt.Sprintf("%s,%s", models.ContractStatusApproved, models.ContractStatusClosed)
+
 	query := &repository.ContractQuery{
 		ListQuery: listQuery,
 		UserID:    userID,
 		IsAdmin:   !filterByCreator,
-		Status:    models.ContractStatusApproved,
+		// Status field in struct is ignored if status_in filter is present, but clear it to be safe/explicit
+		Status: "",
 	}
 
 	contracts, _, err := s.contractRepo.List(ctx, query)
@@ -76,6 +81,7 @@ func (s *ReportService) GenerateCommissions(ctx context.Context, startDate, endD
 		end = end.Add(23*time.Hour + 59*time.Minute + 59*time.Second)
 
 		for _, c := range contracts {
+			// Check ApprovedAt date
 			if c.ApprovedAt != nil && (c.ApprovedAt.After(start) || c.ApprovedAt.Equal(start)) && (c.ApprovedAt.Before(end) || c.ApprovedAt.Equal(end)) {
 				filteredContracts = append(filteredContracts, c)
 			}
@@ -85,6 +91,12 @@ func (s *ReportService) GenerateCommissions(ctx context.Context, startDate, endD
 	}
 
 	var items []CommissionReportItem
+
+	financingTypeTranslations := map[string]string{
+		models.FinancingTypeDirect: "Directo",
+		models.FinancingTypeBank:   "Bancario",
+		models.FinancingTypeCash:   "Contado",
+	}
 
 	for _, c := range filteredContracts {
 		clientName := "N/A"
@@ -115,17 +127,26 @@ func (s *ReportService) GenerateCommissions(ctx context.Context, startDate, endD
 		if c.Creator != nil {
 			sellerName = c.Creator.FullName
 		}
-		commission := amount * 0.02 // Example 2% commission logic
+		commission := c.CommissionAmount
+		if commission == 0 {
+			commission = c.CalculateCommission()
+		}
+
+		financingType := c.FinancingType
+		if val, ok := financingTypeTranslations[financingType]; ok {
+			financingType = val
+		}
 
 		items = append(items, CommissionReportItem{
-			ContractID: c.ID,
-			ClientName: clientName,
-			Project:    projectName,
-			Lot:        lotNumber,
-			Amount:     amount,
-			Date:       dateStr,
-			Seller:     sellerName,
-			Commission: commission,
+			ContractID:    c.ID,
+			ClientName:    clientName,
+			Project:       projectName,
+			Lot:           lotNumber,
+			FinancingType: financingType,
+			Amount:        amount,
+			Date:          dateStr,
+			Seller:        sellerName,
+			Commission:    commission,
 		})
 	}
 
@@ -143,7 +164,7 @@ func (s *ReportService) GenerateCommissionsCSV(ctx context.Context, startDate, e
 	w := csv.NewWriter(b)
 
 	// Header
-	header := []string{"Contrato ID", "Cliente", "Lote", "Proyecto", "Valor Contrato", "Fecha Venta", "Vendedor", "Comisión Est."}
+	header := []string{"Contrato ID", "Cliente", "Lote", "Proyecto", "Tipo Financiamiento", "Valor Contrato", "Fecha Venta", "Vendedor", "Comisión Est."}
 	if err := w.Write(header); err != nil {
 		return nil, err
 	}
@@ -154,6 +175,7 @@ func (s *ReportService) GenerateCommissionsCSV(ctx context.Context, startDate, e
 			item.ClientName,
 			item.Lot,
 			item.Project,
+			item.FinancingType,
 			fmt.Sprintf("%.2f", item.Amount),
 			item.Date,
 			item.Seller,

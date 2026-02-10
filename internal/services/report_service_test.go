@@ -160,6 +160,7 @@ func TestGenerateRevenueCSV(t *testing.T) {
 type mockContractRepository struct {
 	repository.ContractRepository
 	mockFindByIDWithDetails func(ctx context.Context, id uint) (*models.Contract, error)
+	mockList                func(ctx context.Context, query *repository.ContractQuery) ([]models.Contract, int64, error)
 }
 
 func (m *mockContractRepository) FindByID(ctx context.Context, id uint) (*models.Contract, error) {
@@ -185,6 +186,9 @@ func (m *mockContractRepository) Update(ctx context.Context, contract *models.Co
 }
 func (m *mockContractRepository) Delete(ctx context.Context, id uint) error { return nil }
 func (m *mockContractRepository) List(ctx context.Context, query *repository.ContractQuery) ([]models.Contract, int64, error) {
+	if m.mockList != nil {
+		return m.mockList(ctx, query)
+	}
 	return nil, 0, nil
 }
 func (m *mockContractRepository) FindActiveByLot(ctx context.Context, lotID uint) (*models.Contract, error) {
@@ -309,4 +313,87 @@ func TestGenerateRescissionContractPDF(t *testing.T) {
 	if buf != nil {
 		assert.Greater(t, buf.Len(), 0, "PDF buffer should not be empty")
 	}
+}
+
+func TestGenerateCommissions(t *testing.T) {
+	mockRepo := &mockContractRepository{}
+	service := NewReportService(nil, mockRepo, nil)
+
+	// Setup mock data
+	mockRepo.mockList = func(ctx context.Context, query *repository.ContractQuery) ([]models.Contract, int64, error) {
+		amount := 100000.00
+		contracts := []models.Contract{
+			{
+				ID:               1,
+				FinancingType:    models.FinancingTypeDirect,
+				Amount:           &amount,
+				CommissionAmount: 0, // Should be calculated
+				Lot: models.Lot{
+					Project: models.Project{
+						ID:                   1,
+						CommissionRateDirect: 4.0,
+					},
+				},
+			},
+			{
+				ID:               2,
+				FinancingType:    models.FinancingTypeBank,
+				Amount:           &amount,
+				CommissionAmount: 0, // Should be calculated
+				Lot: models.Lot{
+					Project: models.Project{
+						ID:                 1,
+						CommissionRateBank: 6.0,
+					},
+				},
+			},
+			{
+				ID:               3,
+				FinancingType:    models.FinancingTypeCash,
+				Amount:           &amount,
+				CommissionAmount: 0, // Should be calculated
+				Lot: models.Lot{
+					Project: models.Project{
+						ID:                 1,
+						CommissionRateCash: 7.0,
+					},
+				},
+			},
+			{
+				ID:               4,
+				FinancingType:    models.FinancingTypeDirect,
+				Amount:           &amount,
+				CommissionAmount: 500.0, // Should be used directly
+				Lot: models.Lot{
+					Project: models.Project{
+						ID:                   1,
+						CommissionRateDirect: 4.0,
+					},
+				},
+			},
+		}
+		return contracts, int64(len(contracts)), nil
+	}
+
+	// Execute
+	items, err := service.GenerateCommissions(context.Background(), "", "", 0, false)
+	assert.NoError(t, err)
+	assert.Len(t, items, 4)
+
+	// Verify Calculations
+	// 1. Direct: 4% of 100,000 = 4,000
+	assert.Equal(t, "Directo", items[0].FinancingType)
+	assert.InDelta(t, 4000.0, items[0].Commission, 0.01)
+
+	// 2. Bank: 6% of 100,000 = 6,000
+	assert.Equal(t, "Bancario", items[1].FinancingType)
+	assert.InDelta(t, 6000.0, items[1].Commission, 0.01)
+
+	// 3. Cash: 7% of 100,000 = 7,000
+	assert.Equal(t, "Contado", items[2].FinancingType)
+	assert.InDelta(t, 7000.0, items[2].Commission, 0.01)
+
+	// 4. Pre-calculated: 500
+	assert.Equal(t, "Directo", items[3].FinancingType)
+	assert.InDelta(t, 500.0, items[3].Commission, 0.01)
 }
