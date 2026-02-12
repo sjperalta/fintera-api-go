@@ -36,7 +36,8 @@ RUN apk --no-cache add \
     ttf-dejavu \
     ttf-droid \
     ttf-freefont \
-    ttf-liberation
+    ttf-liberation \
+    postgresql-client
 
 # Copy wkhtmltopdf from specialized image
 COPY --from=surnet/alpine-wkhtmltopdf:3.19.0-0.12.6-full /bin/wkhtmltopdf /bin/wkhtmltopdf
