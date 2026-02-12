@@ -39,6 +39,10 @@ type Config struct {
 
 	// Sentry
 	SentryDSN string
+
+	// Default Login (Development only)
+	DefaultEmail    string
+	DefaultPassword string
 }
 
 // Load reads configuration from environment variables
@@ -57,6 +61,8 @@ func Load() (*Config, error) {
 		FromEmail:                getEnv("FROM_EMAIL", "noreply@fintera.app"),
 		EnableEmailNotifications: getEnvAsBool("ENABLE_EMAIL_NOTIFICATIONS", false),
 		SentryDSN:                getEnv("SENTRY_DSN", ""),
+		DefaultEmail:             getEnv("DEFAULT_EMAIL", ""),
+		DefaultPassword:          getEnv("DEFAULT_PASSWORD", ""),
 	}
 
 	// Validate required configuration

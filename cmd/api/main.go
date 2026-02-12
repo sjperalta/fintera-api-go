@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 
+	"github.com/sjperalta/fintera-api/docs"
 	_ "github.com/sjperalta/fintera-api/docs" // Swagger docs
 	"github.com/sjperalta/fintera-api/internal/config"
 	"github.com/sjperalta/fintera-api/internal/database"
@@ -118,6 +120,12 @@ func main() {
 	// Setup router
 	router := setupRouter(h, cfg)
 
+	// Dynamic Swagger Info replacement for Development
+	if cfg.Environment == "development" && cfg.DefaultEmail != "" {
+		docs.SwaggerInfo.SwaggerTemplate = strings.ReplaceAll(docs.SwaggerInfo.SwaggerTemplate, "DEFAULT_EMAIL_PLACEHOLDER", cfg.DefaultEmail)
+		docs.SwaggerInfo.SwaggerTemplate = strings.ReplaceAll(docs.SwaggerInfo.SwaggerTemplate, "DEFAULT_PASSWORD_PLACEHOLDER", cfg.DefaultPassword)
+	}
+
 	// Create HTTP server
 	server := &http.Server{
 		Addr:         ":" + cfg.Port,
@@ -128,7 +136,6 @@ func main() {
 	}
 
 	// Start server in a goroutine
-	// Start server in a goroutine
 	go func() {
 		logger.Info("Server starting", "port", cfg.Port)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -137,7 +144,6 @@ func main() {
 		}
 	}()
 
-	// Wait for interrupt signal for graceful shutdown
 	// Wait for interrupt signal for graceful shutdown
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
@@ -250,6 +256,9 @@ func setupRouter(h *handlers.Handlers, cfg *config.Config) *gin.Engine {
 				admin.PUT("/projects/:project_id/lots/:lot_id", h.Lot.Update)
 				admin.DELETE("/projects/:project_id/lots/:lot_id", h.Lot.Delete)
 
+				// Job status (admin only)
+				admin.GET("/jobs/status", h.Job.Status)
+
 			}
 
 			// User data access (Admin, Seller, or Owner)
@@ -353,8 +362,8 @@ func setupRouter(h *handlers.Handlers, cfg *config.Config) *gin.Engine {
 }
 
 func scheduleJobs(worker *jobs.Worker, svcs *services.Services) {
-	// Check overdue payments every 24 hours (Daily)
-	worker.ScheduleEvery(24*time.Hour, func(ctx context.Context) error {
+	// Check overdue payments every 12 hours
+	worker.ScheduleEvery(12*time.Hour, func(ctx context.Context) error {
 		logger.Info("[Job] Checking overdue payments...")
 		// 1. Calculate and apply overdue interest
 		if err := svcs.Payment.CalculateOverdueInterest(ctx); err != nil {
@@ -365,8 +374,8 @@ func scheduleJobs(worker *jobs.Worker, svcs *services.Services) {
 		return svcs.Payment.CheckOverduePayments(ctx)
 	})
 
-	// Update credit scores every 6 hours
-	worker.ScheduleEvery(6*time.Hour, func(ctx context.Context) error {
+	// Update credit scores every 8 hours
+	worker.ScheduleEvery(8*time.Hour, func(ctx context.Context) error {
 		logger.Info("[Job] Updating credit scores...")
 		return svcs.CreditScore.UpdateAllScores(ctx)
 	})
@@ -377,8 +386,8 @@ func scheduleJobs(worker *jobs.Worker, svcs *services.Services) {
 		return svcs.Analytics.RefreshCache(ctx)
 	})
 
-	// Release unpaid reservations every hour
-	worker.ScheduleEvery(1*time.Hour, func(ctx context.Context) error {
+	// Release unpaid reservations every 8 hours
+	worker.ScheduleEvery(8*time.Hour, func(ctx context.Context) error {
 		logger.Info("[Job] Releasing unpaid reservations...")
 		return svcs.Contract.ReleaseUnpaidReservations(ctx)
 	})

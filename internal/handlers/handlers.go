@@ -18,6 +18,7 @@ type Handlers struct {
 	Report       *ReportHandler
 	Audit        *AuditHandler
 	Analytics    *AnalyticsHandler
+	Job          *JobHandler
 }
 
 // NewHandlers creates all handler instances
@@ -34,5 +35,6 @@ func NewHandlers(svcs *services.Services, storage *storage.LocalStorage) *Handle
 		Report:       NewReportHandler(svcs.Report),
 		Audit:        NewAuditHandler(svcs.Audit), // Pass AuditService
 		Analytics:    NewAnalyticsHandler(svcs.Analytics, svcs.Export),
+		Job:          NewJobHandler(svcs.Job),
 	}
 }

@@ -157,6 +157,64 @@ const docTemplate = `{
                 "responses": {}
             }
         },
+        "/analytics/sellers": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns performance metrics for all sellers",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Analytics"
+                ],
+                "summary": "Get Seller Performance",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Start Date (ISO 8601)",
+                        "name": "start_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "End Date (ISO 8601)",
+                        "name": "end_date",
+                        "in": "query"
+                    }
+                ],
+                "responses": {}
+            }
+        },
+        "/api/v1/jobs/status": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get statistics about background jobs (active, completed, failed, queue length)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Jobs"
+                ],
+                "summary": "Get background job status",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
         "/audits": {
             "get": {
                 "security": [
@@ -188,6 +246,18 @@ const docTemplate = `{
                         "default": 50,
                         "description": "Items per page",
                         "name": "per_page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by entity (Contract, User, Payment, etc.)",
+                        "name": "model",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Search by user name, email, action, entity, or details",
+                        "name": "search_term",
                         "in": "query"
                     }
                 ],
@@ -373,6 +443,76 @@ const docTemplate = `{
                 }
             }
         },
+        "/contracts/stats": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get contract count statistics (Total, Pending, Approved, Rejected)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Contracts"
+                ],
+                "summary": "Get Contract Stats",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/repository.ContractStats"
+                        }
+                    }
+                }
+            }
+        },
+        "/dashboard/seller": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get statistics for the seller dashboard",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Reports"
+                ],
+                "summary": "Seller Dashboard Stats",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Month (1-12)",
+                        "name": "month",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Year",
+                        "name": "year",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.SellerDashboardStats"
+                        }
+                    }
+                }
+            }
+        },
         "/health": {
             "get": {
                 "description": "Checks if the API is running",
@@ -403,7 +543,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Get a paginated list of notifications for the current user",
+                "description": "Get a paginated list of notifications for the current user. Filter by status=unread or status=read.",
                 "consumes": [
                     "application/json"
                 ],
@@ -427,6 +567,12 @@ const docTemplate = `{
                         "default": 20,
                         "description": "Items per page",
                         "name": "per_page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by status: unread, read",
+                        "name": "status",
                         "in": "query"
                     }
                 ],
@@ -546,6 +692,55 @@ const docTemplate = `{
                 "responses": {
                     "200": {
                         "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/notifications/{notification_id}/mark_as_read": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Mark a notification as read (POST /notifications/:id/mark_as_read)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Notifications"
+                ],
+                "summary": "Mark Notification Read (POST)",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Notification ID",
+                        "name": "notification_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -860,7 +1055,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Reject a payment (Admin)",
+                "description": "Reject a payment (Admin). Optionally include a reason in the request body; the applicant receives it in the notification and email.",
                 "consumes": [
                     "application/json"
                 ],
@@ -878,6 +1073,14 @@ const docTemplate = `{
                         "name": "payment_id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "description": "Rejection reason (optional)",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.RejectPaymentRequest"
+                        }
                     }
                 ],
                 "responses": {
@@ -1531,13 +1734,83 @@ const docTemplate = `{
                     }
                 }
             },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Delete a rejected contract and release the lot so it can be reserved again. Only allowed when contract status is rejected.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Contracts"
+                ],
+                "summary": "Delete Rejected Contract",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Contract ID",
+                        "name": "contract_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Project ID",
+                        "name": "project_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Lot ID",
+                        "name": "lot_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
             "patch": {
                 "security": [
                     {
                         "BearerAuth": []
                     }
                 ],
-                "description": "Update a contract",
+                "description": "Update contract schedule fields (payment_term, reserve_amount, down_payment). Allowed only when status is pending, rejected, or submitted. Schedule is recalculated on approval.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1576,14 +1849,37 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/handlers.UpdateContractRequest"
                         }
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.ContractResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -2246,6 +2542,49 @@ const docTemplate = `{
                 }
             }
         },
+        "/reports/commissions": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get a list of commissions for a period",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Reports"
+                ],
+                "summary": "Commissions List",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Start Date (YYYY-MM-DD)",
+                        "name": "start_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "End Date (YYYY-MM-DD)",
+                        "name": "end_date",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
         "/reports/commissions_csv": {
             "get": {
                 "security": [
@@ -2658,7 +2997,7 @@ const docTemplate = `{
                 "tags": [
                     "Users"
                 ],
-                "summary": "Reset Password",
+                "summary": "Update Password with Code",
                 "parameters": [
                     {
                         "description": "Reset Data",
@@ -2771,7 +3110,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Update user details",
+                "description": "Update user details (admin: any field; owner: full_name, phone, address, locale, identity, rtn only)",
                 "consumes": [
                     "application/json"
                 ],
@@ -3023,6 +3362,45 @@ const docTemplate = `{
                 }
             }
         },
+        "/users/{user_id}/picture": {
+            "post": {
+                "description": "Upload user profile picture",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Upload Profile Picture",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "User ID",
+                        "name": "user_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "file",
+                        "description": "Image file",
+                        "name": "image",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.UserResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/users/{user_id}/resend_confirmation": {
             "post": {
                 "security": [
@@ -3232,8 +3610,28 @@ const docTemplate = `{
         "handlers.ApprovePaymentRequest": {
             "type": "object",
             "properties": {
+                "amount": {
+                    "type": "number"
+                },
+                "interest_amount": {
+                    "type": "number"
+                },
                 "paid_amount": {
                     "type": "number"
+                },
+                "payment": {
+                    "type": "object",
+                    "properties": {
+                        "amount": {
+                            "type": "number"
+                        },
+                        "interest_amount": {
+                            "type": "number"
+                        },
+                        "paid_amount": {
+                            "type": "number"
+                        }
+                    }
                 }
             }
         },
@@ -3248,10 +3646,10 @@ const docTemplate = `{
         "handlers.CapitalRepaymentRequest": {
             "type": "object",
             "required": [
-                "amount"
+                "capital_repayment_amount"
             ],
             "properties": {
-                "amount": {
+                "capital_repayment_amount": {
                     "type": "number"
                 }
             }
@@ -3259,7 +3657,6 @@ const docTemplate = `{
         "handlers.ChangePasswordRequest": {
             "type": "object",
             "required": [
-                "current_password",
                 "new_password"
             ],
             "properties": {
@@ -3275,11 +3672,13 @@ const docTemplate = `{
         "handlers.CreateUserRequest": {
             "type": "object",
             "required": [
-                "email",
-                "full_name",
-                "password"
+                "email"
             ],
             "properties": {
+                "FullName": {
+                    "description": "Support PascalCase from some frontends/tools",
+                    "type": "string"
+                },
                 "address": {
                     "type": "string"
                 },
@@ -3293,8 +3692,8 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "password": {
-                    "type": "string",
-                    "minLength": 6
+                    "description": "Optional: if empty, backend generates 5-char temp password and emails it",
+                    "type": "string"
                 },
                 "phone": {
                     "type": "string"
@@ -3352,6 +3751,14 @@ const docTemplate = `{
                 }
             }
         },
+        "handlers.RejectPaymentRequest": {
+            "type": "object",
+            "properties": {
+                "reason": {
+                    "type": "string"
+                }
+            }
+        },
         "handlers.SendRecoveryCodeRequest": {
             "type": "object",
             "required": [
@@ -3360,6 +3767,24 @@ const docTemplate = `{
             "properties": {
                 "email": {
                     "type": "string"
+                }
+            }
+        },
+        "handlers.UpdateContractRequest": {
+            "type": "object",
+            "properties": {
+                "down_payment": {
+                    "type": "number"
+                },
+                "max_payment_date": {
+                    "description": "YYYY-MM-DD; for bank/cash",
+                    "type": "string"
+                },
+                "payment_term": {
+                    "type": "integer"
+                },
+                "reserve_amount": {
+                    "type": "number"
                 }
             }
         },
@@ -3433,6 +3858,10 @@ const docTemplate = `{
                 "closed_at": {
                     "type": "string"
                 },
+                "commission_amount": {
+                    "description": "Commission",
+                    "type": "number"
+                },
                 "created_at": {
                     "type": "string"
                 },
@@ -3475,6 +3904,10 @@ const docTemplate = `{
                 "lot_id": {
                     "type": "integer"
                 },
+                "max_payment_date": {
+                    "description": "for bank/cash: date by which customer will pay the rest",
+                    "type": "string"
+                },
                 "note": {
                     "type": "string"
                 },
@@ -3495,6 +3928,10 @@ const docTemplate = `{
                 },
                 "status": {
                     "type": "string"
+                },
+                "total_paid": {
+                    "description": "Transient field for list view",
+                    "type": "number"
                 },
                 "updated_at": {
                     "type": "string"
@@ -3656,6 +4093,9 @@ const docTemplate = `{
                 "lot_width": {
                     "type": "number"
                 },
+                "max_payment_date": {
+                    "type": "string"
+                },
                 "note": {
                     "type": "string"
                 },
@@ -3782,6 +4222,15 @@ const docTemplate = `{
                 "area": {
                     "type": "number"
                 },
+                "contract_created_by": {
+                    "type": "string"
+                },
+                "contract_created_user_id": {
+                    "type": "integer"
+                },
+                "contract_id": {
+                    "type": "integer"
+                },
                 "east": {
                     "type": "string"
                 },
@@ -3817,6 +4266,12 @@ const docTemplate = `{
                 },
                 "registration_number": {
                     "type": "string"
+                },
+                "reserved_by": {
+                    "type": "string"
+                },
+                "reserved_by_user_id": {
+                    "type": "integer"
                 },
                 "south": {
                     "type": "string"
@@ -3896,6 +4351,12 @@ const docTemplate = `{
                 "approved_at": {
                     "type": "string"
                 },
+                "approved_by_user": {
+                    "$ref": "#/definitions/models.User"
+                },
+                "approved_by_user_id": {
+                    "type": "integer"
+                },
                 "contract": {
                     "description": "Associations",
                     "allOf": [
@@ -3931,6 +4392,9 @@ const docTemplate = `{
                 "payment_type": {
                     "type": "string"
                 },
+                "rejection_reason": {
+                    "type": "string"
+                },
                 "status": {
                     "type": "string"
                 },
@@ -3957,6 +4421,9 @@ const docTemplate = `{
                 "approved_at": {
                     "type": "string"
                 },
+                "approver": {
+                    "type": "string"
+                },
                 "contract_id": {
                     "type": "integer"
                 },
@@ -3978,6 +4445,13 @@ const docTemplate = `{
                 },
                 "interest_amount": {
                     "type": "number"
+                },
+                "is_overpayment": {
+                    "description": "true when paid_amount \u003e amount",
+                    "type": "boolean"
+                },
+                "is_pdf": {
+                    "type": "boolean"
                 },
                 "lot_address": {
                     "type": "string"
@@ -4006,6 +4480,9 @@ const docTemplate = `{
                 "project_name": {
                     "type": "string"
                 },
+                "rejection_reason": {
+                    "type": "string"
+                },
                 "status": {
                     "type": "string"
                 }
@@ -4018,6 +4495,15 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "commission_rate": {
+                    "type": "number"
+                },
+                "commission_rate_bank": {
+                    "type": "number"
+                },
+                "commission_rate_cash": {
+                    "type": "number"
+                },
+                "commission_rate_direct": {
                     "type": "number"
                 },
                 "created_at": {
@@ -4076,6 +4562,18 @@ const docTemplate = `{
                 },
                 "commission_rate": {
                     "type": "number"
+                },
+                "commission_rate_bank": {
+                    "type": "number"
+                },
+                "commission_rate_cash": {
+                    "type": "number"
+                },
+                "commission_rate_direct": {
+                    "type": "number"
+                },
+                "created_at": {
+                    "type": "string"
                 },
                 "delivery_date": {
                     "type": "string"
@@ -4159,6 +4657,9 @@ const docTemplate = `{
                 "locale": {
                     "type": "string"
                 },
+                "must_change_password": {
+                    "type": "boolean"
+                },
                 "note": {
                     "type": "string"
                 },
@@ -4169,6 +4670,12 @@ const docTemplate = `{
                     }
                 },
                 "phone": {
+                    "type": "string"
+                },
+                "profile_picture": {
+                    "type": "string"
+                },
+                "profile_picture_thumb": {
                     "type": "string"
                 },
                 "role": {
@@ -4215,7 +4722,16 @@ const docTemplate = `{
                 "locale": {
                     "type": "string"
                 },
+                "must_change_password": {
+                    "type": "boolean"
+                },
                 "phone": {
+                    "type": "string"
+                },
+                "profile_picture": {
+                    "type": "string"
+                },
+                "profile_picture_thumb": {
                     "type": "string"
                 },
                 "role": {
@@ -4229,6 +4745,23 @@ const docTemplate = `{
                 },
                 "updated_at": {
                     "type": "string"
+                }
+            }
+        },
+        "repository.ContractStats": {
+            "type": "object",
+            "properties": {
+                "approved": {
+                    "type": "integer"
+                },
+                "pending": {
+                    "type": "integer"
+                },
+                "rejected": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
                 }
             }
         },
@@ -4246,6 +4779,23 @@ const docTemplate = `{
                 }
             }
         },
+        "services.DashboardChart": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "type": "number"
+                    }
+                },
+                "labels": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
         "services.LoginResult": {
             "type": "object",
             "properties": {
@@ -4260,6 +4810,26 @@ const docTemplate = `{
                 }
             }
         },
+        "services.RecentCustomer": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "string"
+                },
+                "date": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "project": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
         "services.RevenuePoint": {
             "type": "object",
             "properties": {
@@ -4268,6 +4838,32 @@ const docTemplate = `{
                 },
                 "date": {
                     "type": "string"
+                }
+            }
+        },
+        "services.SellerDashboardStats": {
+            "type": "object",
+            "properties": {
+                "active_leads": {
+                    "type": "integer"
+                },
+                "chart_data": {
+                    "$ref": "#/definitions/services.DashboardChart"
+                },
+                "conversion_rate": {
+                    "type": "number"
+                },
+                "pending_commission": {
+                    "type": "number"
+                },
+                "recent_customers": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.RecentCustomer"
+                    }
+                },
+                "total_sales_value": {
+                    "type": "number"
                 }
             }
         }
