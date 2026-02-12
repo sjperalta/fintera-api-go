@@ -50,8 +50,9 @@ WORKDIR /root/
 # Copy binary from builder
 COPY --from=builder /app/main .
 
-# Copy migration files and Makefile for automated migrations
+# Copy migration files, seed files, and Makefile for automated migrations
 COPY internal/database/migrations ./internal/database/migrations
+COPY internal/database/seeds ./internal/database/seeds
 COPY Makefile .
 
 # Create storage directory
