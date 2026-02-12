@@ -34,6 +34,7 @@ const (
 	NotificationTypePaymentApproved   = "payment_approved"
 	NotificationTypePaymentRejected   = "payment_rejected"
 	NotificationTypePaymentOverdue    = "payment_overdue"
+	NotificationTypeSystem            = "system"
 	NotificationTypeLotReserved       = "lot_reserved"
 	NotificationTypeNewUser           = "create_new_user"
 	NotificationTypeSystemError       = "system_error"

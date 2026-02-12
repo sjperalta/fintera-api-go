@@ -17,7 +17,7 @@ type ContractService struct {
 	lotRepo         repository.LotRepository
 	userRepo        repository.UserRepository
 	paymentRepo     repository.PaymentRepository
-	ledgerRepo      *repository.LedgerRepository
+	ledgerRepo      repository.LedgerRepository
 	notificationSvc *NotificationService
 	emailSvc        *EmailService
 	auditSvc        *AuditService
@@ -30,7 +30,7 @@ func NewContractService(
 	lotRepo repository.LotRepository,
 	userRepo repository.UserRepository,
 	paymentRepo repository.PaymentRepository,
-	ledgerRepo *repository.LedgerRepository,
+	ledgerRepo repository.LedgerRepository,
 	notificationSvc *NotificationService,
 	emailSvc *EmailService,
 	auditSvc *AuditService,

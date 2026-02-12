@@ -29,7 +29,7 @@ type PaymentService struct {
 	repo            repository.PaymentRepository
 	contractRepo    repository.ContractRepository
 	lotRepo         repository.LotRepository
-	ledgerRepo      *repository.LedgerRepository
+	ledgerRepo      repository.LedgerRepository
 	notificationSvc *NotificationService
 	emailSvc        *EmailService
 	auditSvc        *AuditService
@@ -41,7 +41,7 @@ func NewPaymentService(
 	repo repository.PaymentRepository,
 	contractRepo repository.ContractRepository,
 	lotRepo repository.LotRepository,
-	ledgerRepo *repository.LedgerRepository,
+	ledgerRepo repository.LedgerRepository,
 	notificationSvc *NotificationService,
 	emailSvc *EmailService,
 	auditSvc *AuditService,
@@ -453,59 +453,95 @@ func (s *PaymentService) updateContractBalance(ctx context.Context, contractID u
 }
 
 // CalculateOverdueInterest calculates and applies interest for overdue payments
+// CalculateOverdueInterest calculates and applies interest for overdue payments
 func (s *PaymentService) CalculateOverdueInterest(ctx context.Context) error {
 	// Find all overdue payments (pending status and due_date < today)
+	// We need to preload Contract -> Lot -> Project to get InterestRate
+	// And filter for Approved contracts only
 	payments, err := s.repo.FindOverdue(ctx)
 	if err != nil {
 		return err
 	}
 
-	interestRate := 0.05 // 5% annual interest, TODO: Move to config or contract setting
+	overdueCount := 0
+	totalInterestCalculated := 0.0
 
 	for _, payment := range payments {
-		if payment.PaymentDate == nil {
-			// Calculate days overdue
-			daysOverdue := int(time.Since(payment.DueDate).Hours() / 24)
-			if daysOverdue <= 0 {
-				continue
-			}
-
-			// Interest formula: (amount * rate * days) / 365
-			interestAmount := (payment.Amount * interestRate * float64(daysOverdue)) / 365.0
-
-			// Find or create ledger entry for interest
-			// To avoid duplicates, we check if an interest entry exists for this payment and date
-			// For simplicity in this MVP, we might accumulate or just log.
-			// Better approach: Create a daily interest entry if not exists.
-
-			// Check if we already added interest for today
-			// This requires a more complex query or tracking.
-			// For now, let's just log it as a placeholder for the logic
-			// because fully implementing interest accumulation requires careful ledger management
-			// to avoid double charging if job runs multiple times.
-
-			// Creating a ledger entry for the accrued interest
-			description := fmt.Sprintf("Interés por mora (%d días) - Pago #%d", daysOverdue, payment.ID)
-
-			// We only want to add interest if it hasn't been added for this day?
-			// Or maybe update the total interest balance.
-
-			// Simplification for Phase 3:
-			// Just create the entry. In production, we'd check for duplicates.
-			entry := &models.ContractLedgerEntry{
-				ContractID:  payment.ContractID,
-				Amount:      interestAmount,
-				Description: description,
-				EntryType:   models.EntryTypeInterest,
-				EntryDate:   time.Now(),
-			}
-
-			if err := s.ledgerRepo.Create(ctx, entry); err != nil {
-				// Log error but continue
-				continue
-			}
+		// Filter: Only Installments
+		if payment.PaymentType != models.PaymentTypeInstallment {
+			continue
 		}
+
+		// Filter: Only Approved active contracts
+		if payment.Contract.Status != models.ContractStatusApproved || !payment.Contract.Active {
+			continue
+		}
+
+		// Calculate days overdue
+		if time.Now().Before(payment.DueDate) {
+			continue
+		}
+		daysOverdue := int(time.Since(payment.DueDate).Hours() / 24)
+		if daysOverdue <= 0 {
+			continue
+		}
+
+		// Get Interest Rate from Project
+		interestRate := 0.0
+		if payment.Contract.LotID != 0 && payment.Contract.Lot.ProjectID != 0 {
+			// Assuming Lot and Project are preloaded by FindOverdue
+			interestRate = payment.Contract.Lot.Project.InterestRate / 100.0 // Convert percentage to decimal
+		}
+
+		// Specific requirement: "if not found an interest_rate in the project level then the defult is 0"
+		if interestRate <= 0 {
+			continue
+		}
+
+		// Formula: amount * (days / 365) * rate
+		// Logic: "amount of debt" = payment.Amount (the installment amount)
+		interestAmount := (payment.Amount * float64(daysOverdue) / 365.0) * interestRate
+
+		// Update Ledger Entry
+		// Rule: "balance and ledger has debt form, everything start in negative then down to zero"
+		// Logic: Interest increases debt. Debt is negative. So Interest Entry must be NEGATIVE.
+		// Rule: "this should be calculated daily" -> Update the *accumulated* interest entry to reflect current total.
+
+		description := fmt.Sprintf("Interés acumulado por mora (%d días) - Pago #%d", daysOverdue, payment.ID)
+
+		entry := &models.ContractLedgerEntry{
+			ContractID:  payment.ContractID,
+			PaymentID:   &payment.ID,
+			Amount:      -interestAmount, // NEGATIVE to increase debt
+			Description: description,
+			EntryType:   models.EntryTypeInterest,
+			EntryDate:   time.Now(),
+		}
+
+		// FindOrCreate updates the existing entry for this payment if it exists, maintaining strict "current total" logic
+		if err := s.ledgerRepo.FindOrCreateByPaymentAndType(ctx, entry); err != nil {
+			logger.Error("Failed to update interest ledger entry", "payment_id", payment.ID, "error", err)
+			continue
+		}
+
+		// Update the payment's InterestAmount field for display
+		payment.InterestAmount = &interestAmount
+		if err := s.repo.Update(ctx, &payment); err != nil {
+			logger.Error("Failed to update payment interest amount", "payment_id", payment.ID, "error", err)
+		}
+
+		overdueCount++
+		totalInterestCalculated += interestAmount
 	}
+
+	// Notify Admins
+	if overdueCount > 0 {
+		msg := fmt.Sprintf("Proceso de Interés Diario completado.\n\nPagos Vencidos Procesados: %d\nTotal Interés Acumulado Calculado: L %.2f", overdueCount, totalInterestCalculated)
+		s.worker.EnqueueAsync(func(ctx context.Context) error {
+			return s.notificationSvc.NotifyAdmins(ctx, "Reporte Diario de Intereses", msg, models.NotificationTypeSystem)
+		})
+	}
+
 	return nil
 }
 

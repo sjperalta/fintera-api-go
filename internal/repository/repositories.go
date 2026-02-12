@@ -13,7 +13,7 @@ type Repositories struct {
 	Payment      PaymentRepository
 	Notification NotificationRepository
 	RefreshToken RefreshTokenRepository
-	Ledger       *LedgerRepository
+	Ledger       LedgerRepository
 	Analytics    AnalyticsRepository
 }
 

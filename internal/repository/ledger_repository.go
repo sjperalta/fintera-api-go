@@ -8,23 +8,35 @@ import (
 	"gorm.io/gorm"
 )
 
-// LedgerRepository handles database operations for contract ledger entries
-type LedgerRepository struct {
+// LedgerRepository defines the interface for contract ledger data access
+type LedgerRepository interface {
+	Create(ctx context.Context, entry *models.ContractLedgerEntry) error
+	FindByContractID(ctx context.Context, contractID uint) ([]models.ContractLedgerEntry, error)
+	FindByPaymentID(ctx context.Context, paymentID uint) ([]models.ContractLedgerEntry, error)
+	CalculateBalance(ctx context.Context, contractID uint) (float64, error)
+	FindOrCreateByPaymentAndType(ctx context.Context, entry *models.ContractLedgerEntry) error
+	DeleteByContractID(ctx context.Context, contractID uint) error
+}
+
+// ledgerRepository handles database operations for contract ledger entries
+type ledgerRepository struct {
 	db *gorm.DB
 }
 
 // NewLedgerRepository creates a new ledger repository
-func NewLedgerRepository(db *gorm.DB) *LedgerRepository {
-	return &LedgerRepository{db: db}
+func NewLedgerRepository(db *gorm.DB) LedgerRepository {
+	return &ledgerRepository{db: db}
 }
 
 // Create creates a new ledger entry
-func (r *LedgerRepository) Create(ctx context.Context, entry *models.ContractLedgerEntry) error {
+// Create creates a new ledger entry
+func (r *ledgerRepository) Create(ctx context.Context, entry *models.ContractLedgerEntry) error {
 	return r.db.WithContext(ctx).Create(entry).Error
 }
 
 // FindByContractID retrieves all ledger entries for a contract
-func (r *LedgerRepository) FindByContractID(ctx context.Context, contractID uint) ([]models.ContractLedgerEntry, error) {
+// FindByContractID retrieves all ledger entries for a contract
+func (r *ledgerRepository) FindByContractID(ctx context.Context, contractID uint) ([]models.ContractLedgerEntry, error) {
 	var entries []models.ContractLedgerEntry
 	err := r.db.WithContext(ctx).
 		Where("contract_id = ?", contractID).
@@ -34,7 +46,8 @@ func (r *LedgerRepository) FindByContractID(ctx context.Context, contractID uint
 }
 
 // FindByPaymentID retrieves all ledger entries for a payment
-func (r *LedgerRepository) FindByPaymentID(ctx context.Context, paymentID uint) ([]models.ContractLedgerEntry, error) {
+// FindByPaymentID retrieves all ledger entries for a payment
+func (r *ledgerRepository) FindByPaymentID(ctx context.Context, paymentID uint) ([]models.ContractLedgerEntry, error) {
 	var entries []models.ContractLedgerEntry
 	err := r.db.WithContext(ctx).
 		Where("payment_id = ?", paymentID).
@@ -45,7 +58,9 @@ func (r *LedgerRepository) FindByPaymentID(ctx context.Context, paymentID uint) 
 
 // CalculateBalance calculates the current balance for a contract
 // Balance = sum of all ledger entries (positive for debits, negative for credits)
-func (r *LedgerRepository) CalculateBalance(ctx context.Context, contractID uint) (float64, error) {
+// CalculateBalance calculates the current balance for a contract
+// Balance = sum of all ledger entries (positive for debits, negative for credits)
+func (r *ledgerRepository) CalculateBalance(ctx context.Context, contractID uint) (float64, error) {
 	var result struct {
 		Balance float64
 	}
@@ -61,7 +76,9 @@ func (r *LedgerRepository) CalculateBalance(ctx context.Context, contractID uint
 
 // FindOrCreateByPaymentAndType finds or creates a ledger entry for a payment and entry type
 // Used for updating interest entries without creating duplicates
-func (r *LedgerRepository) FindOrCreateByPaymentAndType(ctx context.Context, entry *models.ContractLedgerEntry) error {
+// FindOrCreateByPaymentAndType finds or creates a ledger entry for a payment and entry type
+// Used for updating interest entries without creating duplicates
+func (r *ledgerRepository) FindOrCreateByPaymentAndType(ctx context.Context, entry *models.ContractLedgerEntry) error {
 	// If payment_id and entry_type are set, try to find existing
 	if entry.PaymentID != nil && entry.EntryType == models.EntryTypeInterest {
 		var existing models.ContractLedgerEntry
@@ -85,7 +102,8 @@ func (r *LedgerRepository) FindOrCreateByPaymentAndType(ctx context.Context, ent
 }
 
 // DeleteByContractID deletes all ledger entries for a contract (used when canceling)
-func (r *LedgerRepository) DeleteByContractID(ctx context.Context, contractID uint) error {
+// DeleteByContractID deletes all ledger entries for a contract (used when canceling)
+func (r *ledgerRepository) DeleteByContractID(ctx context.Context, contractID uint) error {
 	return r.db.WithContext(ctx).
 		Where("contract_id = ?", contractID).
 		Delete(&models.ContractLedgerEntry{}).Error
