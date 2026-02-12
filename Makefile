@@ -76,7 +76,7 @@ seed:
 # Generate Swagger docs (requires swag)
 swagger:
 	@which swag > /dev/null || go install github.com/swaggo/swag/cmd/swag@latest
-	swag init -g cmd/api/main.go -o api/openapi
+	swag init -g cmd/api/main.go -o docs
 
 # Lint the code
 lint:

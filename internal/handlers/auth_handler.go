@@ -38,8 +38,8 @@ func NewAuthHandler(authService *services.AuthService) *AuthHandler {
 }
 
 type LoginRequest struct {
-	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required"`
+	Email    string `json:"email" binding:"required,email" example:"DEFAULT_EMAIL_PLACEHOLDER"`
+	Password string `json:"password" binding:"required" example:"DEFAULT_PASSWORD_PLACEHOLDER"`
 }
 
 // loginValidationMessage maps login binding errors to user-friendly Spanish messages.

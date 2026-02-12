@@ -20,6 +20,17 @@ type Worker struct {
 	queue         chan Job
 	asyncSem      chan struct{}
 	maxConcurrent int
+	stats         WorkerStats
+	statsMu       sync.RWMutex
+}
+
+// WorkerStats holds statistics about the worker
+type WorkerStats struct {
+	ActiveJobs    int   `json:"active_jobs"`
+	CompletedJobs int64 `json:"completed_jobs"`
+	FailedJobs    int64 `json:"failed_jobs"`
+	QueueLength   int   `json:"queue_length"`
+	MaxConcurrent int   `json:"max_concurrent"`
 }
 
 // NewWorker creates a worker with N concurrent processors
@@ -71,15 +82,20 @@ func (w *Worker) EnqueueAsync(job Job) {
 		w.wg.Add(1)
 		defer w.wg.Done()
 
+		w.trackJobStart()
+		defer w.trackJobEnd()
+
 		// Recover from panics
 		defer func() {
 			if r := recover(); r != nil {
 				logger.Error(fmt.Sprintf("[Worker] Async job panic: %v", r))
+				w.trackJobFailure()
 			}
 		}()
 
 		if err := job(w.ctx); err != nil {
 			logger.Error(fmt.Sprintf("[Worker] Async job error: %v", err))
+			w.trackJobFailure()
 		}
 	}()
 }
@@ -95,12 +111,15 @@ func (w *Worker) process(workerID int) {
 			if !ok {
 				return
 			}
+			w.trackJobStart()
 			start := time.Now()
 			if err := job(w.ctx); err != nil {
 				logger.Error(fmt.Sprintf("[Worker %d] Job error: %v", workerID, err))
+				w.trackJobFailure()
 			} else {
 				logger.Info(fmt.Sprintf("[Worker %d] Job completed in %v", workerID, time.Since(start)))
 			}
+			w.trackJobEnd()
 		}
 	}
 }
@@ -118,12 +137,15 @@ func (w *Worker) ScheduleEvery(interval time.Duration, job Job) {
 			case <-w.ctx.Done():
 				return
 			case <-ticker.C:
+				w.trackJobStart()
 				start := time.Now()
 				if err := job(w.ctx); err != nil {
 					logger.Error(fmt.Sprintf("[Scheduler] Job error: %v", err))
+					w.trackJobFailure()
 				} else {
 					logger.Info(fmt.Sprintf("[Scheduler] Job completed in %v", time.Since(start)))
 				}
+				w.trackJobEnd()
 			}
 		}
 	}()
@@ -141,9 +163,12 @@ func (w *Worker) ScheduleAt(at time.Time, job Job) {
 		case <-w.ctx.Done():
 			return
 		case <-timer.C:
+			w.trackJobStart()
 			if err := job(w.ctx); err != nil {
 				logger.Error(fmt.Sprintf("[Scheduler] Scheduled job error: %v", err))
+				w.trackJobFailure()
 			}
+			w.trackJobEnd()
 		}
 	}()
 }
@@ -158,4 +183,41 @@ func (w *Worker) Shutdown() {
 // Context returns the worker's context for checking cancellation
 func (w *Worker) Context() context.Context {
 	return w.ctx
+}
+
+// GetStats returns the current worker statistics
+func (w *Worker) GetStats() WorkerStats {
+	w.statsMu.RLock()
+	defer w.statsMu.RUnlock()
+	stats := w.stats
+	stats.QueueLength = len(w.queue)
+	stats.MaxConcurrent = w.maxConcurrent
+	return stats
+}
+
+func (w *Worker) trackJobStart() {
+	w.statsMu.Lock()
+	defer w.statsMu.Unlock()
+	w.stats.ActiveJobs++
+}
+
+func (w *Worker) trackJobEnd() {
+	w.statsMu.Lock()
+	defer w.statsMu.Unlock()
+	w.stats.ActiveJobs--
+	w.stats.CompletedJobs++
+}
+
+func (w *Worker) trackJobFailure() {
+	w.statsMu.Lock()
+	defer w.statsMu.Unlock()
+	w.stats.FailedJobs++
+	// CompletedJobs is incremented in trackJobEnd, which is always called.
+	// So we don't decrement CompletedJobs here, total jobs = completed + (failed included in completed count? No, typically separate or failed is subset).
+	// Let's enable CompletedJobs to be total finished. FailedJobs is a subset or separate counter?
+	// Common pattern: Completed = Success, Failed = Failure.
+	// But here trackJobEnd is always called.
+	// Let's adjust: trackJobEnd increments Completed. If it failed, we also increment Failed.
+	// So CompletedJobs effectively means "Finished Jobs" (success or fail).
+	// If we want Success count, we can derive it: Completed - Failed.
 }

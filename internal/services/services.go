@@ -23,6 +23,7 @@ type Services struct {
 	Email        *EmailService
 	Analytics    *AnalyticsService
 	Export       *ExportService
+	Job          *JobService
 }
 
 // NewServices creates all service instances
@@ -35,6 +36,7 @@ func NewServices(repos *repository.Repositories, worker *jobs.Worker, storage *s
 	imageSvc := NewImageService(cfg.StoragePath + "/uploads")
 
 	analyticsSvc := NewAnalyticsService(repos.Analytics, repos.Project, notificationSvc, repos.User)
+	jobSvc := NewJobService(worker)
 
 	return &Services{
 		Auth:         NewAuthService(repos.User, repos.RefreshToken, cfg),
@@ -50,5 +52,6 @@ func NewServices(repos *repository.Repositories, worker *jobs.Worker, storage *s
 		Email:        emailSvc,
 		Analytics:    analyticsSvc,
 		Export:       NewExportService(analyticsSvc), // AnalyticsSvc passed to ExportSvc
+		Job:          jobSvc,
 	}
 }
