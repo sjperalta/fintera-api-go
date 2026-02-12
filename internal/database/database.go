@@ -45,6 +45,7 @@ func Connect(databaseURL string) (*gorm.DB, error) {
 	sqlDB.SetMaxIdleConns(5)
 	sqlDB.SetMaxOpenConns(50)
 	sqlDB.SetConnMaxLifetime(time.Hour)
+	sqlDB.SetConnMaxIdleTime(5 * time.Minute)
 
 	// Verify connection
 	if err := sqlDB.Ping(); err != nil {

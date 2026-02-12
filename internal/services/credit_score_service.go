@@ -48,19 +48,43 @@ func (s *CreditScoreService) UpdateScore(ctx context.Context, userID uint) error
 func (s *CreditScoreService) UpdateAllScores(ctx context.Context) error {
 	logger.Info("[CreditScoreService] Updating all user credit scores...")
 
-	users, err := s.userRepo.FindAll(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to fetch users: %w", err)
-	}
+	// Process users in batches
+	page := 1
+	pageSize := 100
+	totalProcessed := 0
 
-	for _, user := range users {
-		if err := s.UpdateScore(ctx, user.ID); err != nil {
-			logger.Error(fmt.Sprintf("[CreditScoreService] Error updating score for user %d: %v", user.ID, err))
-			continue
+	for {
+		// Use List query for pagination
+		query := repository.NewListQuery()
+		query.Page = page
+		query.PerPage = pageSize
+
+		users, total, err := s.userRepo.List(ctx, query)
+		if err != nil {
+			return fmt.Errorf("failed to fetch users page %d: %w", page, err)
 		}
+
+		if len(users) == 0 {
+			break
+		}
+
+		for _, user := range users {
+			if err := s.UpdateScore(ctx, user.ID); err != nil {
+				logger.Error(fmt.Sprintf("[CreditScoreService] Error updating score for user %d: %v", user.ID, err))
+				continue
+			}
+			totalProcessed++
+		}
+
+		// Check if we've processed all users
+		if int64(totalProcessed) >= total || len(users) < pageSize {
+			break
+		}
+
+		page++
 	}
 
-	logger.Info(fmt.Sprintf("[CreditScoreService] Updated credit scores for %d users", len(users)))
+	logger.Info(fmt.Sprintf("[CreditScoreService] Updated credit scores for %d users", totalProcessed))
 	return nil
 }
 

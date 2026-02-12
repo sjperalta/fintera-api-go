@@ -339,6 +339,7 @@ type PaymentRepository interface {
 	FindPendingByUser(ctx context.Context, userID uint) ([]models.Payment, error)
 	FindPaidByMonth(ctx context.Context, month, year int) ([]models.Payment, error)
 	GetMonthlyStats(ctx context.Context) (*PaymentStats, error)
+	FindByUserID(ctx context.Context, userID uint) ([]models.Payment, error)
 }
 
 type paymentRepository struct {
@@ -618,6 +619,19 @@ func (r *paymentRepository) GetMonthlyStats(ctx context.Context) (*PaymentStats,
 	stats.TotalOverdue = totalOverdue
 
 	return stats, nil
+}
+
+func (r *paymentRepository) FindByUserID(ctx context.Context, userID uint) ([]models.Payment, error) {
+	var payments []models.Payment
+	err := r.db.WithContext(ctx).
+		Joins("JOIN contracts ON contracts.id = payments.contract_id").
+		Where("contracts.applicant_user_id = ?", userID).
+		Preload("Contract.Lot.Project").
+		Preload("Contract.ApplicantUser").
+		Preload("ApprovedByUser").
+		Order("payments.due_date ASC").
+		Find(&payments).Error
+	return payments, err
 }
 
 // ProjectRepository defines the interface for project data access

@@ -589,35 +589,40 @@ func (s *PaymentService) GetStats(ctx context.Context) (*repository.PaymentStats
 }
 
 func (s *PaymentService) GetUserFinancingSummary(ctx context.Context, userID uint) (*UserFinancingSummary, error) {
-	// 1. Get all contracts for user
-	contracts, err := s.contractRepo.FindByUser(ctx, userID)
+	// Get all payments for this user across all contracts efficiently
+	payments, err := s.repo.FindByUserID(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
 
 	summary := &UserFinancingSummary{
-		Currency: "HNL", // Default
+		Currency:  "HNL", // Default
+		Balance:   0,
+		TotalDue:  0,
+		TotalFees: 0,
 	}
 
-	for _, contract := range contracts {
-		// Calculate balance for each contract if not already updated (or just sum them)
-		if contract.Balance != nil {
-			summary.Balance += *contract.Balance
+	now := time.Now()
+
+	// Track seen contracts to sum balances correctly
+	seenContracts := make(map[uint]bool)
+
+	for _, p := range payments {
+		// Sum contract balances (once per contract)
+		if !seenContracts[p.ContractID] {
+			if p.Contract.Balance != nil {
+				summary.Balance += *p.Contract.Balance
+			}
+			seenContracts[p.ContractID] = true
 		}
 
-		// Get overdue payments for this contract
-		payments, err := s.repo.FindByContract(ctx, contract.ID)
-		if err == nil {
-			now := time.Now()
-			for _, p := range payments {
-				// Consider pending payments that are past due date
-				if p.Status == models.PaymentStatusPending && p.DueDate.Before(now) {
-					summary.TotalDue += p.Amount
-					if p.InterestAmount != nil {
-						summary.TotalDue += *p.InterestAmount
-						summary.TotalFees += *p.InterestAmount
-					}
-				}
+		// Calculate overdue totals
+		// Logic from original: if pending and before now (overdue or due today)
+		if p.Status == models.PaymentStatusPending && p.DueDate.Before(now) {
+			summary.TotalDue += p.Amount
+			if p.InterestAmount != nil {
+				summary.TotalDue += *p.InterestAmount
+				summary.TotalFees += *p.InterestAmount
 			}
 		}
 	}
@@ -626,25 +631,6 @@ func (s *PaymentService) GetUserFinancingSummary(ctx context.Context, userID uin
 }
 
 func (s *PaymentService) GetUserPayments(ctx context.Context, userID uint) ([]models.Payment, error) {
-	// 1. Get all contracts for user
-	contracts, err := s.contractRepo.FindByUser(ctx, userID)
-	if err != nil {
-		return nil, err
-	}
-
-	allPayments := make([]models.Payment, 0)
-
-	// 2. Get payments for each contract
-	for _, contract := range contracts {
-		payments, err := s.repo.FindByContract(ctx, contract.ID)
-		if err != nil {
-			return nil, err
-		}
-
-		// FindByContract already preloads Contract.Lot.Project, Contract.ApplicantUser, ApprovedByUser.
-		// Do not overwrite payment.Contract so paid_amount and full contract details are preserved.
-		allPayments = append(allPayments, payments...)
-	}
-
-	return allPayments, nil
+	// 1. Get all payments for user efficiently
+	return s.repo.FindByUserID(ctx, userID)
 }
