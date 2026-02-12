@@ -14,19 +14,29 @@ type Job func(ctx context.Context) error
 
 // Worker manages background jobs and scheduled tasks
 type Worker struct {
-	ctx    context.Context
-	cancel context.CancelFunc
-	wg     sync.WaitGroup
-	queue  chan Job
+	ctx           context.Context
+	cancel        context.CancelFunc
+	wg            sync.WaitGroup
+	queue         chan Job
+	asyncSem      chan struct{}
+	maxConcurrent int
 }
 
 // NewWorker creates a worker with N concurrent processors
 func NewWorker(numWorkers int) *Worker {
 	ctx, cancel := context.WithCancel(context.Background())
+	// Allow 2x workers for async jobs
+	asyncLimit := numWorkers * 2
+	if asyncLimit < 10 {
+		asyncLimit = 10
+	}
+
 	w := &Worker{
-		ctx:    ctx,
-		cancel: cancel,
-		queue:  make(chan Job, 100),
+		ctx:           ctx,
+		cancel:        cancel,
+		queue:         make(chan Job, 100),
+		asyncSem:      make(chan struct{}, asyncLimit),
+		maxConcurrent: asyncLimit,
 	}
 
 	// Start worker goroutines
@@ -50,9 +60,24 @@ func (w *Worker) Enqueue(job Job) {
 	}
 }
 
-// EnqueueAsync runs a job in a new goroutine (fire-and-forget)
+// EnqueueAsync runs a job in a new goroutine (fire-and-forget), bounded by semaphore
 func (w *Worker) EnqueueAsync(job Job) {
 	go func() {
+		// Acquire semaphore to limit concurrency
+		w.asyncSem <- struct{}{}
+		defer func() { <-w.asyncSem }()
+
+		// Track in waitgroup
+		w.wg.Add(1)
+		defer w.wg.Done()
+
+		// Recover from panics
+		defer func() {
+			if r := recover(); r != nil {
+				logger.Error(fmt.Sprintf("[Worker] Async job panic: %v", r))
+			}
+		}()
+
 		if err := job(w.ctx); err != nil {
 			logger.Error(fmt.Sprintf("[Worker] Async job error: %v", err))
 		}

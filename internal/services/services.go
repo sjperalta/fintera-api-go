@@ -34,6 +34,8 @@ func NewServices(repos *repository.Repositories, worker *jobs.Worker, storage *s
 	// Create ImageService
 	imageSvc := NewImageService(cfg.StoragePath + "/uploads")
 
+	analyticsSvc := NewAnalyticsService(repos.Analytics, repos.Project, notificationSvc, repos.User)
+
 	return &Services{
 		Auth:         NewAuthService(repos.User, repos.RefreshToken, cfg),
 		User:         NewUserService(repos.User, repos.Contract, worker, emailSvc, auditSvc, imageSvc),
@@ -46,7 +48,7 @@ func NewServices(repos *repository.Repositories, worker *jobs.Worker, storage *s
 		Audit:        auditSvc, // Assign AuditService
 		CreditScore:  NewCreditScoreService(repos.User, repos.Contract, repos.Payment),
 		Email:        emailSvc,
-		Analytics:    NewAnalyticsService(repos.Analytics, repos.Project, notificationSvc, repos.User),
-		Export:       NewExportService(NewAnalyticsService(repos.Analytics, repos.Project, notificationSvc, repos.User)), // AnalyticsSvc passed to ExportSvc
+		Analytics:    analyticsSvc,
+		Export:       NewExportService(analyticsSvc), // AnalyticsSvc passed to ExportSvc
 	}
 }

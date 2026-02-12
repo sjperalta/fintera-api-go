@@ -196,18 +196,18 @@ func (s *ReportService) GenerateCommissionsCSV(ctx context.Context, startDate, e
 
 // GenerateRevenueCSV generates a CSV report of revenue
 func (s *ReportService) GenerateRevenueCSV(ctx context.Context) (*bytes.Buffer, error) {
-	// Get all payments that are PAID
-	// Ideally we filter by date range, but for now dumping all paid payments
-	query := repository.NewListQuery()
-	query.Filters["status"] = "paid"
-
-	payments, _, err := s.paymentRepo.List(ctx, query)
-	if err != nil {
-		return nil, err
-	}
-
 	b := &bytes.Buffer{}
 	w := csv.NewWriter(b)
+
+	// Header
+	header := []string{
+		"Pago ID", "Contrato", "Tipo", "Monto Pagado", "Fecha Pago",
+		"Cliente", "Identidad", "Proyecto", "Lote",
+		"Financiamiento", "Plazo",
+	}
+	if err := w.Write(header); err != nil {
+		return nil, err
+	}
 
 	// Translation maps
 	paymentTypeTranslations := map[string]string{
@@ -224,81 +224,96 @@ func (s *ReportService) GenerateRevenueCSV(ctx context.Context) (*bytes.Buffer, 
 		models.FinancingTypeCash:   "Contado",
 	}
 
-	// Header
-	header := []string{
-		"Pago ID", "Contrato", "Tipo", "Monto Pagado", "Fecha Pago",
-		"Cliente", "Identidad", "Proyecto", "Lote",
-		"Financiamiento", "Plazo",
-	}
-	if err := w.Write(header); err != nil {
-		return nil, err
-	}
+	// Process in batches
+	page := 1
+	pageSize := 1000
 
-	for _, p := range payments {
-		paidAmount := 0.0
-		if p.PaidAmount != nil {
-			paidAmount = *p.PaidAmount
-		}
+	for {
+		query := repository.NewListQuery()
+		query.Filters["status"] = "paid"
+		query.Page = page
+		query.PerPage = pageSize
 
-		payDate := ""
-		if p.PaymentDate != nil {
-			payDate = p.PaymentDate.Format("2006-01-02")
-		}
-
-		clientName := "N/A"
-		clientIdentity := "N/A"
-		projectName := "N/A"
-		lotName := "N/A"
-		financingType := "N/A"
-		paymentTerm := "N/A"
-
-		// Assuming Preload works in List
-		if p.Contract.ID != 0 {
-			if p.Contract.ApplicantUser.ID != 0 {
-				clientName = p.Contract.ApplicantUser.FullName
-				clientIdentity = p.Contract.ApplicantUser.Identity
-			}
-
-			if p.Contract.Lot.ID != 0 {
-				lotName = p.Contract.Lot.Name
-				if p.Contract.Lot.Project.ID != 0 {
-					projectName = p.Contract.Lot.Project.Name
-				}
-			}
-
-			if val, ok := financingTypeTranslations[p.Contract.FinancingType]; ok {
-				financingType = val
-			} else {
-				financingType = p.Contract.FinancingType
-			}
-
-			paymentTerm = fmt.Sprintf("%d meses", p.Contract.PaymentTerm)
-		}
-
-		paymentType := p.PaymentType
-		if val, ok := paymentTypeTranslations[paymentType]; ok {
-			paymentType = val
-		}
-
-		record := []string{
-			fmt.Sprintf("%d", p.ID),
-			fmt.Sprintf("%d", p.ContractID),
-			paymentType,
-			fmt.Sprintf("%.2f", paidAmount),
-			payDate,
-			clientName,
-			clientIdentity,
-			projectName,
-			lotName,
-			financingType,
-			paymentTerm,
-		}
-		if err := w.Write(record); err != nil {
+		payments, _, err := s.paymentRepo.List(ctx, query)
+		if err != nil {
 			return nil, err
 		}
+
+		if len(payments) == 0 {
+			break
+		}
+
+		for _, p := range payments {
+			// Process payment (same logic as before)
+			paidAmount := 0.0
+			if p.PaidAmount != nil {
+				paidAmount = *p.PaidAmount
+			}
+
+			payDate := ""
+			if p.PaymentDate != nil {
+				payDate = p.PaymentDate.Format("2006-01-02")
+			}
+
+			clientName := "N/A"
+			clientIdentity := "N/A"
+			projectName := "N/A"
+			lotName := "N/A"
+			financingType := "N/A"
+			paymentTerm := "N/A"
+
+			if p.Contract.ID != 0 {
+				if p.Contract.ApplicantUser.ID != 0 {
+					clientName = p.Contract.ApplicantUser.FullName
+					clientIdentity = p.Contract.ApplicantUser.Identity
+				}
+
+				if p.Contract.Lot.ID != 0 {
+					lotName = p.Contract.Lot.Name
+					if p.Contract.Lot.Project.ID != 0 {
+						projectName = p.Contract.Lot.Project.Name
+					}
+				}
+
+				if val, ok := financingTypeTranslations[p.Contract.FinancingType]; ok {
+					financingType = val
+				} else {
+					financingType = p.Contract.FinancingType
+				}
+
+				paymentTerm = fmt.Sprintf("%d meses", p.Contract.PaymentTerm)
+			}
+
+			paymentType := p.PaymentType
+			if val, ok := paymentTypeTranslations[paymentType]; ok {
+				paymentType = val
+			}
+
+			record := []string{
+				fmt.Sprintf("%d", p.ID),
+				fmt.Sprintf("%d", p.ContractID),
+				paymentType,
+				fmt.Sprintf("%.2f", paidAmount),
+				payDate,
+				clientName,
+				clientIdentity,
+				projectName,
+				lotName,
+				financingType,
+				paymentTerm,
+			}
+			if err := w.Write(record); err != nil {
+				return nil, err
+			}
+		}
+
+		w.Flush()
+		if len(payments) < pageSize {
+			break
+		}
+		page++
 	}
 
-	w.Flush()
 	return b, nil
 }
 
