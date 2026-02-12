@@ -70,90 +70,95 @@ BEGIN
     SELECT id INTO v_user_id FROM users WHERE email = 'alexander.ramos@example.com' LIMIT 1;
     SELECT id INTO v_seller_id FROM users WHERE email = 'cristofer@gmail.com' LIMIT 1;
     
-    -- Create contract
-    INSERT INTO contracts (lot_id, creator_id, applicant_user_id, payment_term, financing_type, reserve_amount, down_payment, 
-                          status, currency, amount, balance, approved_at, active, created_at, updated_at)
-    VALUES (v_lot_id, v_seller_id, v_user_id, 24, 'direct', v_reserve, v_down, 
-            'approved', 'HNL', v_amount, 0, v_approved_date, TRUE, v_approved_date, NOW())
-    RETURNING id INTO v_contract_id;
-    
-    -- Initial ledger entry
-    INSERT INTO contract_ledger_entries (contract_id, amount, description, entry_type, entry_date, created_at, updated_at)
-    VALUES (v_contract_id, -v_amount, 'Monto Inicial del Contrato', 'initial', v_approved_date, v_approved_date, v_approved_date);
-    
-    -- Reserve payment ledger
-    INSERT INTO contract_ledger_entries (contract_id, amount, description, entry_type, entry_date, created_at, updated_at)
-    VALUES (v_contract_id, v_reserve, 'Pago de Reserva', 'reservation', v_approved_date, v_approved_date, v_approved_date);
-    
-    -- Down payment ledger
-    INSERT INTO contract_ledger_entries (contract_id, amount, description, entry_type, entry_date, created_at, updated_at)
-    VALUES (v_contract_id, v_down, 'Prima/Enganche', 'down_payment', v_approved_date, v_approved_date, v_approved_date);
-    
-    -- Calculate monthly payment
-    v_monthly := (v_amount - v_reserve - v_down) / 24.0;
-    
-    -- Payment 1: Reserve (PAID)
-    INSERT INTO payments (contract_id, amount, paid_amount, due_date, payment_date, status, payment_type, description, approved_at, created_at, updated_at)
-    VALUES (
-        v_contract_id,
-        v_reserve,
-        v_reserve,
-        v_approved_date,
-        v_approved_date,
-        'paid',
-        'reservation',
-        'Pago de Reserva',
-        v_approved_date,
-        NOW(), NOW()
-    );
-    
-    -- Payment 2: Down Payment (PAID)
-    INSERT INTO payments (contract_id, amount, paid_amount, due_date, payment_date, status, payment_type, description, approved_at, created_at, updated_at)
-    VALUES (
-        v_contract_id,
-        v_down,
-        v_down,
-        v_approved_date + INTERVAL '7 days',
-        v_approved_date + INTERVAL '7 days',
-        'paid',
-        'down_payment',
-        'Prima/Enganche',
-        v_approved_date + INTERVAL '7 days',
-        NOW(), NOW()
-    );
-    
-    -- Payments 3-26: Monthly installments (first 3 paid, rest pending)
-    FOR i IN 1..24 LOOP
+    -- Check if contract already exists
+    SELECT id INTO v_contract_id FROM contracts WHERE lot_id = v_lot_id AND applicant_user_id = v_user_id LIMIT 1;
+
+    IF v_contract_id IS NULL THEN
+        -- Create contract
+        INSERT INTO contracts (lot_id, creator_id, applicant_user_id, payment_term, financing_type, reserve_amount, down_payment, 
+                              status, currency, amount, balance, approved_at, active, created_at, updated_at)
+        VALUES (v_lot_id, v_seller_id, v_user_id, 24, 'direct', v_reserve, v_down, 
+                'approved', 'HNL', v_amount, 0, v_approved_date, TRUE, v_approved_date, NOW())
+        RETURNING id INTO v_contract_id;
+        
+        -- Initial ledger entry
+        INSERT INTO contract_ledger_entries (contract_id, amount, description, entry_type, entry_date, created_at, updated_at)
+        VALUES (v_contract_id, -v_amount, 'Monto Inicial del Contrato', 'initial', v_approved_date, v_approved_date, v_approved_date);
+        
+        -- Reserve payment ledger
+        INSERT INTO contract_ledger_entries (contract_id, amount, description, entry_type, entry_date, created_at, updated_at)
+        VALUES (v_contract_id, v_reserve, 'Pago de Reserva', 'reservation', v_approved_date, v_approved_date, v_approved_date);
+        
+        -- Down payment ledger
+        INSERT INTO contract_ledger_entries (contract_id, amount, description, entry_type, entry_date, created_at, updated_at)
+        VALUES (v_contract_id, v_down, 'Prima/Enganche', 'down_payment', v_approved_date, v_approved_date, v_approved_date);
+        
+        -- Calculate monthly payment
+        v_monthly := (v_amount - v_reserve - v_down) / 24.0;
+        
+        -- Payment 1: Reserve (PAID)
         INSERT INTO payments (contract_id, amount, paid_amount, due_date, payment_date, status, payment_type, description, approved_at, created_at, updated_at)
         VALUES (
             v_contract_id,
-            v_monthly,
-            CASE WHEN i <= 3 THEN v_monthly ELSE 0 END,
-            v_approved_date + (i || ' months')::INTERVAL,
-            CASE WHEN i <= 3 THEN v_approved_date + (i || ' months')::INTERVAL ELSE NULL END,
-            CASE WHEN i <= 3 THEN 'paid' ELSE 'pending' END,
-            'installment',
-            'Cuota Mensual #' || i,
-            CASE WHEN i <= 3 THEN v_approved_date + (i || ' months')::INTERVAL ELSE NULL END,
+            v_reserve,
+            v_reserve,
+            v_approved_date,
+            v_approved_date,
+            'paid',
+            'reservation',
+            'Pago de Reserva',
+            v_approved_date,
             NOW(), NOW()
         );
         
-        -- Ledger for paid installments
-        IF i <= 3 THEN
-            INSERT INTO contract_ledger_entries (contract_id, amount, description, entry_type, entry_date, created_at, updated_at)
-            VALUES (v_contract_id, v_monthly, 'Pago Cuota #' || i, 'payment', 
-                   v_approved_date + (i || ' months')::INTERVAL,
-                   v_approved_date + (i || ' months')::INTERVAL, 
-                   v_approved_date + (i || ' months')::INTERVAL);
-        END IF;
-    END LOOP;
-    
-    -- Calculate final balance: -amount + reserve + down_payment + (3 monthly payments) (debt is negative)
-    -- Logic matches ContractService: Balance starts at -Amount and increases with payments
-    v_balance := -v_amount + v_reserve + v_down + (v_monthly * 3);
-    
-    -- Update contract balance
-    UPDATE contracts SET balance = v_balance WHERE id = v_contract_id;
+        -- Payment 2: Down Payment (PAID)
+        INSERT INTO payments (contract_id, amount, paid_amount, due_date, payment_date, status, payment_type, description, approved_at, created_at, updated_at)
+        VALUES (
+            v_contract_id,
+            v_down,
+            v_down,
+            v_approved_date + INTERVAL '7 days',
+            v_approved_date + INTERVAL '7 days',
+            'paid',
+            'down_payment',
+            'Prima/Enganche',
+            v_approved_date + INTERVAL '7 days',
+            NOW(), NOW()
+        );
+        
+        -- Payments 3-26: Monthly installments (first 3 paid, rest pending)
+        FOR i IN 1..24 LOOP
+            INSERT INTO payments (contract_id, amount, paid_amount, due_date, payment_date, status, payment_type, description, approved_at, created_at, updated_at)
+            VALUES (
+                v_contract_id,
+                v_monthly,
+                CASE WHEN i <= 3 THEN v_monthly ELSE 0 END,
+                v_approved_date + (i || ' months')::INTERVAL,
+                CASE WHEN i <= 3 THEN v_approved_date + (i || ' months')::INTERVAL ELSE NULL END,
+                CASE WHEN i <= 3 THEN 'paid' ELSE 'pending' END,
+                'installment',
+                'Cuota Mensual #' || i,
+                CASE WHEN i <= 3 THEN v_approved_date + (i || ' months')::INTERVAL ELSE NULL END,
+                NOW(), NOW()
+            );
+            
+            -- Ledger for paid installments
+            IF i <= 3 THEN
+                INSERT INTO contract_ledger_entries (contract_id, amount, description, entry_type, entry_date, created_at, updated_at)
+                VALUES (v_contract_id, v_monthly, 'Pago Cuota #' || i, 'payment', 
+                       v_approved_date + (i || ' months')::INTERVAL,
+                       v_approved_date + (i || ' months')::INTERVAL, 
+                       v_approved_date + (i || ' months')::INTERVAL);
+            END IF;
+        END LOOP;
+        
+        -- Calculate final balance: -amount + reserve + down_payment + (3 monthly payments) (debt is negative)
+        -- Logic matches ContractService: Balance starts at -Amount and increases with payments
+        v_balance := -v_amount + v_reserve + v_down + (v_monthly * 3);
+        
+        -- Update contract balance
+        UPDATE contracts SET balance = v_balance WHERE id = v_contract_id;
+    END IF;
 END $$;
 
 -- Contract 2: Milton Suazo - CLOSED (fully paid, balance = 0)
@@ -174,88 +179,93 @@ BEGIN
     SELECT id INTO v_user_id FROM users WHERE email = 'milton@example.com' LIMIT 1;
     SELECT id INTO v_seller_id FROM users WHERE email = 'vendedor@example.com' LIMIT 1;
     
-    -- Create contract WITH balance = 0 and status = closed
-    INSERT INTO contracts (lot_id, creator_id, applicant_user_id, payment_term, financing_type, reserve_amount, down_payment,
-                          status, currency, amount, balance, approved_at, active, closed_at, created_at, updated_at)
-    VALUES (v_lot_id, v_seller_id, v_user_id, 12, 'direct', v_reserve, v_down,
-            'closed', 'HNL', v_amount, 0, v_approved_date, FALSE, v_closed_date, v_approved_date, NOW())
-    RETURNING id INTO v_contract_id;
-    
-    -- Initial ledger
-    INSERT INTO contract_ledger_entries (contract_id, amount, description, entry_type, entry_date, created_at, updated_at)
-    VALUES (v_contract_id, -v_amount, 'Monto Inicial del Contrato', 'initial', v_approved_date, v_approved_date, v_approved_date);
-    
-    -- Reserve & down payment ledgers
-    INSERT INTO contract_ledger_entries (contract_id, amount, description, entry_type, entry_date, created_at, updated_at)
-    VALUES
-        (v_contract_id, v_reserve, 'Pago de Reserva', 'reservation', v_approved_date, v_approved_date, v_approved_date),
-        (v_contract_id, v_down, 'Prima/Enganche', 'down_payment', v_approved_date, v_approved_date, v_approved_date);
+    -- Check if contract already exists
+    SELECT id INTO v_contract_id FROM contracts WHERE lot_id = v_lot_id AND applicant_user_id = v_user_id LIMIT 1;
 
-    -- Payment 1: Reserve (PAID)
-    INSERT INTO payments (contract_id, amount, paid_amount, due_date, payment_date, status, payment_type, description, approved_at, created_at, updated_at)
-    VALUES (
-        v_contract_id,
-        v_reserve,
-        v_reserve,
-        v_approved_date,
-        v_approved_date,
-        'paid',
-        'reservation',
-        'Pago de Reserva',
-        v_approved_date,
-        NOW(), NOW()
-    );
-    
-    -- Payment 2: Down Payment (PAID)
-    INSERT INTO payments (contract_id, amount, paid_amount, due_date, payment_date, status, payment_type, description, approved_at, created_at, updated_at)
-    VALUES (
-        v_contract_id,
-        v_down,
-        v_down,
-        v_approved_date + INTERVAL '7 days',
-        v_approved_date + INTERVAL '7 days',
-        'paid',
-        'down_payment',
-        'Prima/Enganche',
-        v_approved_date + INTERVAL '7 days',
-        NOW(), NOW()
-    );
-    
-    v_monthly := FLOOR((v_amount - v_reserve - v_down) / 12.0);
-    
-    -- All 12 payments PAID
-    FOR i IN 1..12 LOOP
-        DECLARE
-            v_payment_amount NUMERIC;
-        BEGIN
-            -- First payment gets the remainder to avoid cents in others
-            IF i = 1 THEN
-                 v_payment_amount := (v_amount - v_reserve - v_down) - (v_monthly * 11);
-            ELSE
-                 v_payment_amount := v_monthly;
-            END IF;
-            
-            INSERT INTO payments (contract_id, amount, paid_amount, due_date, payment_date, status, payment_type, description, approved_at, created_at, updated_at)
-            VALUES (
-                v_contract_id,
-                v_payment_amount,
-                v_payment_amount,
-                v_approved_date + (i || ' months')::INTERVAL,
-                v_approved_date + (i || ' months')::INTERVAL,
-                'paid',
-                'installment',
-                'Cuota Mensual #' || i,
-                v_approved_date + (i || ' months')::INTERVAL,
-                NOW(), NOW()
-            );
-            
-            INSERT INTO contract_ledger_entries (contract_id, amount, description, entry_type, entry_date, created_at, updated_at)
-            VALUES (v_contract_id, v_payment_amount, 'Pago Cuota #' || i, 'payment',
-                   v_approved_date + (i || ' months')::INTERVAL,
-                   v_approved_date + (i || ' months')::INTERVAL,
-                   v_approved_date + (i || ' months')::INTERVAL);
-        END;
-    END LOOP;
+    IF v_contract_id IS NULL THEN
+        -- Create contract WITH balance = 0 and status = closed
+        INSERT INTO contracts (lot_id, creator_id, applicant_user_id, payment_term, financing_type, reserve_amount, down_payment,
+                              status, currency, amount, balance, approved_at, active, closed_at, created_at, updated_at)
+        VALUES (v_lot_id, v_seller_id, v_user_id, 12, 'direct', v_reserve, v_down,
+                'closed', 'HNL', v_amount, 0, v_approved_date, FALSE, v_closed_date, v_approved_date, NOW())
+        RETURNING id INTO v_contract_id;
+        
+        -- Initial ledger
+        INSERT INTO contract_ledger_entries (contract_id, amount, description, entry_type, entry_date, created_at, updated_at)
+        VALUES (v_contract_id, -v_amount, 'Monto Inicial del Contrato', 'initial', v_approved_date, v_approved_date, v_approved_date);
+        
+        -- Reserve & down payment ledgers
+        INSERT INTO contract_ledger_entries (contract_id, amount, description, entry_type, entry_date, created_at, updated_at)
+        VALUES
+            (v_contract_id, v_reserve, 'Pago de Reserva', 'reservation', v_approved_date, v_approved_date, v_approved_date),
+            (v_contract_id, v_down, 'Prima/Enganche', 'down_payment', v_approved_date, v_approved_date, v_approved_date);
+
+        -- Payment 1: Reserve (PAID)
+        INSERT INTO payments (contract_id, amount, paid_amount, due_date, payment_date, status, payment_type, description, approved_at, created_at, updated_at)
+        VALUES (
+            v_contract_id,
+            v_reserve,
+            v_reserve,
+            v_approved_date,
+            v_approved_date,
+            'paid',
+            'reservation',
+            'Pago de Reserva',
+            v_approved_date,
+            NOW(), NOW()
+        );
+        
+        -- Payment 2: Down Payment (PAID)
+        INSERT INTO payments (contract_id, amount, paid_amount, due_date, payment_date, status, payment_type, description, approved_at, created_at, updated_at)
+        VALUES (
+            v_contract_id,
+            v_down,
+            v_down,
+            v_approved_date + INTERVAL '7 days',
+            v_approved_date + INTERVAL '7 days',
+            'paid',
+            'down_payment',
+            'Prima/Enganche',
+            v_approved_date + INTERVAL '7 days',
+            NOW(), NOW()
+        );
+        
+        v_monthly := FLOOR((v_amount - v_reserve - v_down) / 12.0);
+        
+        -- All 12 payments PAID
+        FOR i IN 1..12 LOOP
+            DECLARE
+                v_payment_amount NUMERIC;
+            BEGIN
+                -- First payment gets the remainder to avoid cents in others
+                IF i = 1 THEN
+                     v_payment_amount := (v_amount - v_reserve - v_down) - (v_monthly * 11);
+                ELSE
+                     v_payment_amount := v_monthly;
+                END IF;
+                
+                INSERT INTO payments (contract_id, amount, paid_amount, due_date, payment_date, status, payment_type, description, approved_at, created_at, updated_at)
+                VALUES (
+                    v_contract_id,
+                    v_payment_amount,
+                    v_payment_amount,
+                    v_approved_date + (i || ' months')::INTERVAL,
+                    v_approved_date + (i || ' months')::INTERVAL,
+                    'paid',
+                    'installment',
+                    'Cuota Mensual #' || i,
+                    v_approved_date + (i || ' months')::INTERVAL,
+                    NOW(), NOW()
+                );
+                
+                INSERT INTO contract_ledger_entries (contract_id, amount, description, entry_type, entry_date, created_at, updated_at)
+                VALUES (v_contract_id, v_payment_amount, 'Pago Cuota #' || i, 'payment',
+                       v_approved_date + (i || ' months')::INTERVAL,
+                       v_approved_date + (i || ' months')::INTERVAL,
+                       v_approved_date + (i || ' months')::INTERVAL);
+            END;
+        END LOOP;
+    END IF;
 END $$;
 
 -- Contract 3: Antonio Perez - PENDING (no payments yet)
@@ -269,14 +279,19 @@ BEGIN
     SELECT id INTO v_lot_id FROM lots WHERE name = 'Lote 2' LIMIT 1;
     SELECT id INTO v_user_id FROM users WHERE email = 'antonio.perez@gmail.com' LIMIT 1;
     
-    -- Initial balance is negative total amount (debt)
-    INSERT INTO contracts (lot_id, applicant_user_id, payment_term, financing_type, reserve_amount, down_payment,
-                          status, currency, amount, balance, created_at, updated_at)
-    VALUES (v_lot_id, v_user_id, 18, 'direct', 50000.00, 100000.00,
-            'pending', 'HNL', v_amount, -v_amount, NOW() - INTERVAL '5 days', NOW())
-    RETURNING id INTO v_contract_id;
-    
-    -- No payments or ledger entries for pending contracts
+    -- Check if contract already exists
+    SELECT id INTO v_contract_id FROM contracts WHERE lot_id = v_lot_id AND applicant_user_id = v_user_id LIMIT 1;
+
+    IF v_contract_id IS NULL THEN
+        -- Initial balance is negative total amount (debt)
+        INSERT INTO contracts (lot_id, applicant_user_id, payment_term, financing_type, reserve_amount, down_payment,
+                              status, currency, amount, balance, created_at, updated_at)
+        VALUES (v_lot_id, v_user_id, 18, 'direct', 50000.00, 100000.00,
+                'pending', 'HNL', v_amount, -v_amount, NOW() - INTERVAL '5 days', NOW())
+        RETURNING id INTO v_contract_id;
+        
+        -- No payments or ledger entries for pending contracts
+    END IF;
 END $$;
 
 -- ============================================
@@ -290,7 +305,12 @@ SELECT
     'Antonio Perez Martinez ha solicitado un contrato',
     'contract_pending',
     NOW() - INTERVAL '5 days',
-    NOW() - INTERVAL '5 days';
+    NOW() - INTERVAL '5 days'
+WHERE NOT EXISTS (
+    SELECT 1 FROM notifications 
+    WHERE title = 'Nueva solicitud de contrato' 
+    AND message = 'Antonio Perez Martinez ha solicitado un contrato'
+);
 
 INSERT INTO notifications (user_id, title, message, notification_type, read_at, created_at, updated_at)
 SELECT 
@@ -300,4 +320,9 @@ SELECT
     'contract_approved',
     NOW() - INTERVAL '2 months',
     NOW() - INTERVAL '3 months',
-    NOW() - INTERVAL '2 months';
+    NOW() - INTERVAL '2 months'
+WHERE NOT EXISTS (
+    SELECT 1 FROM notifications 
+    WHERE title = 'Contrato aprobado' 
+    AND message = 'Tu solicitud de contrato ha sido aprobada'
+);

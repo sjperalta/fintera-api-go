@@ -52,6 +52,7 @@ func NewReportService(
 // is true (e.g. for sellers), only contracts created by that user are returned.
 func (s *ReportService) GenerateCommissions(ctx context.Context, startDate, endDate string, userID uint, filterByCreator bool) ([]CommissionReportItem, error) {
 	listQuery := repository.NewListQuery()
+	listQuery.PerPage = 0 // Fetch ALL contracts, no pagination limit
 
 	if startDate != "" && endDate != "" {
 		listQuery.Filters["approved_from"] = startDate

@@ -61,4 +61,4 @@ RUN mkdir -p /root/storage
 EXPOSE 8080
 
 # Run migrations and then start the application
-CMD ["sh", "-c", "make migrate-up && ./main"]
+CMD ["sh", "-c", "make migrate-up && make seed && ./main"]

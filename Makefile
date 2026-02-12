@@ -58,7 +58,7 @@ drop-db-seed-migrate:
 	psql "$(subst fintera_api_development,postgres,$(DATABASE_URL))" -c "DROP DATABASE IF EXISTS fintera_api_development;"
 	psql "$(subst fintera_api_development,postgres,$(DATABASE_URL))" -c "CREATE DATABASE fintera_api_development;"
 	migrate -path internal/database/migrations -database "$(DATABASE_URL)" up
-	psql "$(DATABASE_URL)" -f internal/database/seeds/seeds.sql
+	@for f in $$(ls internal/database/seeds/*.sql | sort); do echo "Running seed: $$f"; psql "$(DATABASE_URL)" -f $$f; done
 
 # Drop daabase and run seed and migrations and force drop database
 drop-db-seed-migrate-force:
@@ -66,12 +66,12 @@ drop-db-seed-migrate-force:
 	psql "$(subst fintera_api_development,postgres,$(DATABASE_URL))" -c "DROP DATABASE IF EXISTS fintera_api_development;"
 	psql "$(subst fintera_api_development,postgres,$(DATABASE_URL))" -c "CREATE DATABASE fintera_api_development;"
 	migrate -path internal/database/migrations -database "$(DATABASE_URL)" up
-	psql "$(DATABASE_URL)" -f internal/database/seeds/seeds.sql
+	@for f in $$(ls internal/database/seeds/*.sql | sort); do echo "Running seed: $$f"; psql "$(DATABASE_URL)" -f $$f; done
 
 # Run database seeds
 seed:
 	@if [ -z "$(DATABASE_URL)" ]; then echo "DATABASE_URL is not set"; exit 1; fi
-	psql "$(DATABASE_URL)" -f internal/database/seeds/seeds.sql
+	@for f in $$(ls internal/database/seeds/*.sql | sort); do echo "Running seed: $$f"; psql "$(DATABASE_URL)" -f $$f; done
 
 # Generate Swagger docs (requires swag)
 swagger:
