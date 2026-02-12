@@ -353,8 +353,8 @@ func setupRouter(h *handlers.Handlers, cfg *config.Config) *gin.Engine {
 }
 
 func scheduleJobs(worker *jobs.Worker, svcs *services.Services) {
-	// Check overdue payments every hour
-	worker.ScheduleEvery(1*time.Hour, func(ctx context.Context) error {
+	// Check overdue payments every 24 hours (Daily)
+	worker.ScheduleEvery(24*time.Hour, func(ctx context.Context) error {
 		logger.Info("[Job] Checking overdue payments...")
 		// 1. Calculate and apply overdue interest
 		if err := svcs.Payment.CalculateOverdueInterest(ctx); err != nil {
