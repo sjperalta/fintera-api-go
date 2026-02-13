@@ -124,7 +124,7 @@ func (w *Worker) process(workerID int) {
 	}
 }
 
-// ScheduleEvery runs a job at fixed intervals
+// ScheduleEvery runs a job at fixed intervals. The first run happens after the interval (not at startup).
 func (w *Worker) ScheduleEvery(interval time.Duration, job Job) {
 	w.wg.Add(1)
 	go func() {
@@ -137,18 +137,43 @@ func (w *Worker) ScheduleEvery(interval time.Duration, job Job) {
 			case <-w.ctx.Done():
 				return
 			case <-ticker.C:
-				w.trackJobStart()
-				start := time.Now()
-				if err := job(w.ctx); err != nil {
-					logger.Error(fmt.Sprintf("[Scheduler] Job error: %v", err))
-					w.trackJobFailure()
-				} else {
-					logger.Info(fmt.Sprintf("[Scheduler] Job completed in %v", time.Since(start)))
-				}
-				w.trackJobEnd()
+				w.runScheduledJob(job)
 			}
 		}
 	}()
+}
+
+// ScheduleEveryImmediate runs a job once at startup, then at fixed intervals. Use this when the process
+// may restart (e.g. Railway deploys) so jobs run soon after start instead of waiting for the first interval.
+func (w *Worker) ScheduleEveryImmediate(interval time.Duration, job Job) {
+	w.wg.Add(1)
+	go func() {
+		defer w.wg.Done()
+		w.runScheduledJob(job)
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-w.ctx.Done():
+				return
+			case <-ticker.C:
+				w.runScheduledJob(job)
+			}
+		}
+	}()
+}
+
+func (w *Worker) runScheduledJob(job Job) {
+	w.trackJobStart()
+	start := time.Now()
+	if err := job(w.ctx); err != nil {
+		logger.Error(fmt.Sprintf("[Scheduler] Job error: %v", err))
+		w.trackJobFailure()
+	} else {
+		logger.Info(fmt.Sprintf("[Scheduler] Job completed in %v", time.Since(start)))
+	}
+	w.trackJobEnd()
 }
 
 // ScheduleAt runs a job once at a specific time
