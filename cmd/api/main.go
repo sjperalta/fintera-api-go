@@ -362,8 +362,12 @@ func setupRouter(h *handlers.Handlers, cfg *config.Config) *gin.Engine {
 }
 
 func scheduleJobs(worker *jobs.Worker, svcs *services.Services) {
+	// Use ScheduleEveryImmediate so jobs run once on startup (e.g. after Railway deploy/restart),
+	// then at the given interval. Plain ScheduleEvery would wait for the first interval before
+	// running, so with restarts or long intervals (8h, 12h) jobs might never run.
+
 	// Check overdue payments every 12 hours
-	worker.ScheduleEvery(12*time.Hour, func(ctx context.Context) error {
+	worker.ScheduleEveryImmediate(12*time.Hour, func(ctx context.Context) error {
 		logger.Info("[Job] Checking overdue payments...")
 		// 1. Calculate and apply overdue interest
 		if err := svcs.Payment.CalculateOverdueInterest(ctx); err != nil {
@@ -375,25 +379,25 @@ func scheduleJobs(worker *jobs.Worker, svcs *services.Services) {
 	})
 
 	// Update credit scores every 8 hours
-	worker.ScheduleEvery(8*time.Hour, func(ctx context.Context) error {
+	worker.ScheduleEveryImmediate(8*time.Hour, func(ctx context.Context) error {
 		logger.Info("[Job] Updating credit scores...")
 		return svcs.CreditScore.UpdateAllScores(ctx)
 	})
 
 	// Refresh analytics cache every 15 minutes
-	worker.ScheduleEvery(15*time.Minute, func(ctx context.Context) error {
+	worker.ScheduleEveryImmediate(15*time.Minute, func(ctx context.Context) error {
 		logger.Info("[Job] Refreshing analytics cache...")
 		return svcs.Analytics.RefreshCache(ctx)
 	})
 
 	// Release unpaid reservations every 8 hours
-	worker.ScheduleEvery(8*time.Hour, func(ctx context.Context) error {
+	worker.ScheduleEveryImmediate(8*time.Hour, func(ctx context.Context) error {
 		logger.Info("[Job] Releasing unpaid reservations...")
 		return svcs.Contract.ReleaseUnpaidReservations(ctx)
 	})
 
 	// Daily payment reminder emails for active users with active contracts
-	worker.ScheduleEvery(24*time.Hour, func(ctx context.Context) error {
+	worker.ScheduleEveryImmediate(24*time.Hour, func(ctx context.Context) error {
 		logger.Info("[Job] Sending daily payment reminder emails...")
 		if err := svcs.Payment.SendDailyPaymentReminderEmails(ctx); err != nil {
 			return err
