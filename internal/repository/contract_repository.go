@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -297,8 +298,9 @@ func (r *contractRepository) FindActiveByLot(ctx context.Context, lotID uint) (*
 
 func (r *contractRepository) FindPendingReservations(ctx context.Context, olderThanHours int) ([]models.Contract, error) {
 	var contracts []models.Contract
+	interval := fmt.Sprintf("%d hours", olderThanHours)
 	err := r.db.WithContext(ctx).
-		Where("contracts.status = ? AND contracts.created_at < NOW() - INTERVAL '? hours'", models.ContractStatusSubmitted, olderThanHours).
+		Where("contracts.status = ? AND contracts.created_at < NOW() - INTERVAL '"+interval+"'", models.ContractStatusSubmitted).
 		Preload("Lot").
 		Preload("ApplicantUser").
 		Find(&contracts).Error
@@ -486,6 +488,7 @@ func (r *paymentRepository) FindOverdue(ctx context.Context) ([]models.Payment, 
 	var payments []models.Payment
 	err := r.db.WithContext(ctx).
 		Where("payments.status = ? AND payments.due_date < CURRENT_DATE", models.PaymentStatusPending).
+		Preload("Contract.Lot.Project").
 		Preload("Contract.ApplicantUser").
 		Order("due_date ASC").
 		Find(&payments).Error

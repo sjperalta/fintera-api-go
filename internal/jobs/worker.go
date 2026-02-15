@@ -165,6 +165,13 @@ func (w *Worker) ScheduleEveryImmediate(interval time.Duration, job Job) {
 }
 
 func (w *Worker) runScheduledJob(job Job) {
+	defer func() {
+		if r := recover(); r != nil {
+			logger.Error(fmt.Sprintf("[Scheduler] Job panic: %v", r))
+			w.trackJobFailure()
+			w.trackJobEnd()
+		}
+	}()
 	w.trackJobStart()
 	start := time.Now()
 	if err := job(w.ctx); err != nil {
