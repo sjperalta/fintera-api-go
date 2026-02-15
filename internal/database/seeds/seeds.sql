@@ -1,5 +1,8 @@
 -- Enhanced Seed Data for FinteraAPI - Realistic Contract Data
 -- Password for all users: "password123"
+--
+-- IDEMPOTENT: Safe to run on every deployment. Uses ON CONFLICT / WHERE NOT EXISTS
+-- so existing data is never duplicated.
 
 -- ============================================
 -- 1. USERS
@@ -16,14 +19,16 @@ VALUES
 ON CONFLICT (email) DO NOTHING;
 
 -- ============================================
--- 2. PROJECTS
+-- 2. PROJECTS (idempotent: insert only if guid does not exist)
 -- ============================================
 
 INSERT INTO projects (name, description, project_type, address, lot_count, price_per_square_unit, interest_rate, guid, commission_rate, measurement_unit, created_at, updated_at)
-VALUES 
-('Portal Mar de Plata', 'Proyecto residencial frente al mar en Colonia Costarica, Omoa.', 'residential', 'Colonia Costarica, Omoa', 5, 2500.00, 5.00, 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 5.00, 'm2', NOW(), NOW()),
-('Ciudad Jaguar', 'Residencial exclusivo en Cieneguita, Puerto Cortes.', 'residential', 'Cieneguita, Puerto Cortes, Honduras', 5, 2500.00, 5.00, 'b1ffcd88-8d0a-3ff7-aa5c-5cc8bd270b22', 5.00, 'm2', NOW(), NOW())
-ON CONFLICT DO NOTHING;
+SELECT 'Portal Mar de Plata', 'Proyecto residencial frente al mar en Colonia Costarica, Omoa.', 'residential', 'Colonia Costarica, Omoa', 5, 2500.00, 5.00, 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 5.00, 'm2', NOW(), NOW()
+WHERE NOT EXISTS (SELECT 1 FROM projects WHERE guid = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11');
+
+INSERT INTO projects (name, description, project_type, address, lot_count, price_per_square_unit, interest_rate, guid, commission_rate, measurement_unit, created_at, updated_at)
+SELECT 'Ciudad Jaguar', 'Residencial exclusivo en Cieneguita, Puerto Cortes.', 'residential', 'Cieneguita, Puerto Cortes, Honduras', 5, 2500.00, 5.00, 'b1ffcd88-8d0a-3ff7-aa5c-5cc8bd270b22', 5.00, 'm2', NOW(), NOW()
+WHERE NOT EXISTS (SELECT 1 FROM projects WHERE guid = 'b1ffcd88-8d0a-3ff7-aa5c-5cc8bd270b22');
 
 -- ============================================
 -- 3. LOTS

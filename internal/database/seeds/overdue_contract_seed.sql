@@ -23,13 +23,13 @@ BEGIN
         RETURN;
     END IF;
 
-    -- Create a new lot for this contract
+    -- Create lot only if it does not exist (idempotent)
     INSERT INTO lots (project_id, name, length, width, price, status, created_at, updated_at)
-    VALUES (v_project_id, 'Lote 99', 20.00, 15.00, 750000.00, 'available', NOW(), NOW())
-    ON CONFLICT DO NOTHING
+    SELECT v_project_id, 'Lote 99', 20.00, 15.00, 750000.00, 'available', NOW(), NOW()
+    WHERE NOT EXISTS (SELECT 1 FROM lots WHERE project_id = v_project_id AND name = 'Lote 99')
     RETURNING id INTO v_lot_id;
 
-    -- If lot already exists, fetch it
+    -- If lot already existed, fetch it
     IF v_lot_id IS NULL THEN
         SELECT id INTO v_lot_id FROM lots WHERE project_id = v_project_id AND name = 'Lote 99' LIMIT 1;
     END IF;
