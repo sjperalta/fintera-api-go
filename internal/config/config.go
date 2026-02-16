@@ -37,8 +37,10 @@ type Config struct {
 	FromEmail                string
 	EnableEmailNotifications bool
 
-	// Sentry
-	SentryDSN string
+	// Rollbar
+	RollbarToken       string
+	RollbarCodeVersion string
+	RollbarServerRoot  string
 
 	// Default Login (Development only)
 	DefaultEmail    string
@@ -60,7 +62,9 @@ func Load() (*Config, error) {
 		ResendAPIKey:             getEnv("RESEND_API_KEY", ""),
 		FromEmail:                getEnv("FROM_EMAIL", "noreply@fintera.app"),
 		EnableEmailNotifications: getEnvAsBool("ENABLE_EMAIL_NOTIFICATIONS", false),
-		SentryDSN:                getEnv("SENTRY_DSN", ""),
+		RollbarToken:             getEnv("ROLLBAR_TOKEN", ""),
+		RollbarCodeVersion:       getEnv("ROLLBAR_CODE_VERSION", ""),
+		RollbarServerRoot:        getEnv("ROLLBAR_SERVER_ROOT", "github.com/sjperalta/fintera-api"),
 		DefaultEmail:             getEnv("DEFAULT_EMAIL", ""),
 		DefaultPassword:          getEnv("DEFAULT_PASSWORD", ""),
 	}

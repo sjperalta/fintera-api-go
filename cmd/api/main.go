@@ -10,10 +10,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/getsentry/sentry-go"
-	sentrygin "github.com/getsentry/sentry-go/gin"
 	"github.com/gin-contrib/gzip"
 	_ "github.com/joho/godotenv/autoload"
+	"github.com/rollbar/rollbar-go"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 
@@ -60,19 +59,13 @@ func main() {
 	// Initialize logger
 	logger.Setup(cfg.Environment)
 
-	// Initialize Sentry (GlitchTip) when DSN is configured
-	if cfg.SentryDSN != "" {
-		if err := sentry.Init(sentry.ClientOptions{
-			Dsn: cfg.SentryDSN,
-			// Set TracesSampleRate to 1.0 to capture 100% of transactions for performance monitoring.
-			// Set to a lower value (e.g. 0.2) in production if needed.
-			TracesSampleRate: 0.2,
-			Environment:      cfg.Environment,
-		}); err != nil {
-			logger.Error("Sentry initialization failed", "error", err)
-		} else {
-			logger.Info("Sentry initialized")
-		}
+	// Initialize Rollbar when token is configured
+	if cfg.RollbarToken != "" {
+		rollbar.SetToken(cfg.RollbarToken)
+		rollbar.SetEnvironment(cfg.Environment)
+		rollbar.SetCodeVersion(cfg.RollbarCodeVersion)
+		rollbar.SetServerRoot(cfg.RollbarServerRoot)
+		logger.Info("Rollbar initialized")
 	}
 
 	// Warn if Resend email is not configured (API loads .env, not .production.env)
@@ -163,9 +156,9 @@ func main() {
 	worker.Shutdown()
 	logger.Info("Background worker stopped")
 
-	// Flush Sentry events before exit
-	if cfg.SentryDSN != "" {
-		sentry.Flush(5 * time.Second)
+	// Close Rollbar and flush events before exit
+	if cfg.RollbarToken != "" {
+		rollbar.Wait()
 	}
 
 	logger.Info("Server exited gracefully")
@@ -175,8 +168,8 @@ func setupRouter(h *handlers.Handlers, cfg *config.Config) *gin.Engine {
 	router := gin.New()
 
 	// Global middleware
-	if cfg.SentryDSN != "" {
-		router.Use(sentrygin.New(sentrygin.Options{Repanic: true}))
+	if cfg.RollbarToken != "" {
+		router.Use(rollbarRecoveryMiddleware())
 	}
 	router.Use(gin.Recovery())
 	router.Use(middleware.RequestLogger())
@@ -406,4 +399,20 @@ func scheduleJobs(worker *jobs.Worker, svcs *services.Services) {
 	})
 
 	logger.Info("Scheduled recurring jobs")
+}
+
+// rollbarRecoveryMiddleware creates a Gin middleware that catches panics and reports them to Rollbar
+func rollbarRecoveryMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		defer func() {
+			if err := recover(); err != nil {
+				// Report the panic to Rollbar
+				rollbar.Error(rollbar.ERR, err)
+
+				// Re-panic so Gin's recovery can handle it
+				panic(err)
+			}
+		}()
+		c.Next()
+	}
 }
