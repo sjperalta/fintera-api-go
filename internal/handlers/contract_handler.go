@@ -1,6 +1,9 @@
 package handlers
 
 import (
+	"bytes"
+	"encoding/json"
+	"io"
 	"net/http"
 	"net/mail"
 	"strconv"
@@ -303,12 +306,13 @@ func (h *ContractHandler) Create(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"message": "Solicitud de contrato creada exitosamente", "contract_id": contract.ID})
 }
 
-// UpdateContractRequest is the body for PATCH contract (schedule-related fields only; allowed when status is pending/rejected/submitted)
+// UpdateContractRequest is the body for PATCH contract
 type UpdateContractRequest struct {
 	PaymentTerm    *int     `json:"payment_term"`
 	ReserveAmount  *float64 `json:"reserve_amount"`
 	DownPayment    *float64 `json:"down_payment"`
 	MaxPaymentDate *string  `json:"max_payment_date"` // YYYY-MM-DD; for bank/cash
+	Note           *string  `json:"note"`
 }
 
 // @Summary Update Contract
@@ -332,16 +336,38 @@ func (h *ContractHandler) Update(c *gin.Context) {
 		return
 	}
 
-	status := contract.Status
-	if status != models.ContractStatusPending && status != models.ContractStatusRejected && status != models.ContractStatusSubmitted {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Solo se pueden editar plazos, reserva y pago inicial cuando el contrato está en estado pendiente, rechazado o enviado"})
-		return
+	var req UpdateContractRequest
+
+	var bodyBytes []byte
+	if c.Request.Body != nil {
+		bodyBytes, _ = io.ReadAll(c.Request.Body)
+	}
+	// Restore body for future binding
+	c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+
+	// 1. Try Nested Structure { "contract": { ... } }
+	var nestedReq struct {
+		Contract UpdateContractRequest `json:"contract"`
+	}
+	if err := json.Unmarshal(bodyBytes, &nestedReq); err == nil && (nestedReq.Contract.Note != nil || nestedReq.Contract.PaymentTerm != nil) {
+		req = nestedReq.Contract
+	} else {
+		// 2. Try Flat Structure { ... }
+		if err := json.Unmarshal(bodyBytes, &req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON format: " + err.Error()})
+			return
+		}
 	}
 
-	var req UpdateContractRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
+	// 1. Check for schedule-changing fields
+	status := contract.Status
+	isScheduleUpdate := req.PaymentTerm != nil || req.ReserveAmount != nil || req.DownPayment != nil || req.MaxPaymentDate != nil
+
+	if isScheduleUpdate {
+		if status != models.ContractStatusPending && status != models.ContractStatusRejected && status != models.ContractStatusSubmitted {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Solo se pueden editar plazos, reserva y pago inicial cuando el contrato está en estado pendiente, rechazado o enviado"})
+			return
+		}
 	}
 
 	if req.PaymentTerm != nil {
@@ -380,6 +406,10 @@ func (h *ContractHandler) Update(c *gin.Context) {
 				contract.MaxPaymentDate = &parsed
 			}
 		}
+	}
+
+	if req.Note != nil {
+		contract.Note = req.Note
 	}
 
 	if err := h.contractService.Update(c.Request.Context(), contract); err != nil {
