@@ -63,10 +63,13 @@ func (h *UserHandler) Index(c *gin.Context) {
 	}
 
 	status := c.Query("status")
-	if status == "" {
+	switch status {
+	case "":
 		status = models.StatusActive
-	} else if status == "all" {
+	case "all":
 		status = ""
+	default:
+		status = c.Query("status")
 	}
 	query.Filters["status"] = status
 

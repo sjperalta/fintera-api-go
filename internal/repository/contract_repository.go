@@ -163,14 +163,18 @@ func (r *contractRepository) List(ctx context.Context, query *ContractQuery) ([]
 		}
 	}
 
+	if val, ok := query.Filters["guid"]; ok && val != "" {
+		db = db.Where("contracts.guid = ?", val)
+	}
+
 	// Apply search
 	if query.Search != "" {
 		search := "%" + query.Search + "%"
 		db = db.Joins("LEFT JOIN users ON users.id = contracts.applicant_user_id").
 			Joins("LEFT JOIN lots ON lots.id = contracts.lot_id").
 			Joins("LEFT JOIN projects ON projects.id = lots.project_id").
-			Where("users.full_name ILIKE ? OR users.email ILIKE ? OR lots.name ILIKE ? OR projects.name ILIKE ?",
-				search, search, search, search)
+			Where("users.full_name ILIKE ? OR users.email ILIKE ? OR lots.name ILIKE ? OR projects.name ILIKE ? OR contracts.guid ILIKE ?",
+				search, search, search, search, search)
 	}
 
 	// Count total
@@ -413,6 +417,9 @@ func (r *paymentRepository) List(ctx context.Context, query *ListQuery) ([]model
 			// Handle comma-separated list
 			statuses := strings.Split(statusFilter, ",")
 			db = db.Where("payments.status IN ?", statuses)
+		} else if statusFilter == "overdue" {
+			// Handle virtual "overdue" status
+			db = db.Where("payments.status = ? AND payments.due_date < CURRENT_DATE", models.PaymentStatusPending)
 		} else {
 			db = db.Where("payments.status = ?", statusFilter)
 		}
@@ -454,8 +461,14 @@ func (r *paymentRepository) List(ctx context.Context, query *ListQuery) ([]model
 	if query.SortBy != "" {
 		field := query.SortBy
 		// Map frontend fields to database columns if necessary
-		if field == "updated_at" || field == "created_at" || field == "due_date" || field == "payment_date" {
+		switch field {
+		case "updated_at", "created_at", "due_date", "payment_date":
 			field = "payments." + field
+		case "applicant":
+			// Sort by the applicant's full name via contract → user join
+			db = db.Joins("LEFT JOIN contracts AS sort_c ON sort_c.id = payments.contract_id").
+				Joins("LEFT JOIN users AS sort_u ON sort_u.id = sort_c.applicant_user_id")
+			field = "sort_u.full_name"
 		}
 
 		order := field
@@ -684,7 +697,11 @@ func (r *projectRepository) List(ctx context.Context, query *ListQuery) ([]model
 
 	if query.Search != "" {
 		search := "%" + query.Search + "%"
-		db = db.Where("name ILIKE ? OR address ILIKE ?", search, search)
+		db = db.Where("name ILIKE ? OR address ILIKE ? OR guid ILIKE ?", search, search, search)
+	}
+
+	if val, ok := query.Filters["guid"]; ok && val != "" {
+		db = db.Where("guid = ?", val)
 	}
 
 	db.Count(&total)

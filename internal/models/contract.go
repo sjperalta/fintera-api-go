@@ -11,6 +11,7 @@ type Contract struct {
 	CreatorID       *uint    `gorm:"index" json:"creator_id"`
 	ApplicantUserID uint     `gorm:"not null;index" json:"applicant_user_id"`
 	PaymentTerm     int      `gorm:"not null" json:"payment_term"`
+	GUID            string   `gorm:"column:guid;not null" json:"guid"`
 	FinancingType   string   `gorm:"not null" json:"financing_type"`
 	Status          string   `gorm:"default:pending;index" json:"status"`
 	Amount          *float64 `gorm:"type:decimal" json:"amount"`
@@ -135,7 +136,9 @@ func (c *Contract) CalculateCommission() float64 {
 type ContractResponse struct {
 	ID                     uint                          `json:"id"`
 	ContractID             uint                          `json:"contract_id"`
+	GUID                   string                        `json:"guid"`
 	ProjectID              uint                          `json:"project_id"`
+	ProjectGUID            string                        `json:"project_guid"`
 	ProjectName            string                        `json:"project_name"`
 	ProjectAddress         string                        `json:"project_address"`
 	LotID                  uint                          `json:"lot_id"`
@@ -177,6 +180,7 @@ func (c *Contract) ToResponse() ContractResponse {
 	resp := ContractResponse{
 		ID:                c.ID,
 		ContractID:        c.ID,
+		GUID:              c.GUID,
 		LotID:             c.LotID,
 		ApplicantUserID:   c.ApplicantUserID,
 		PaymentTerm:       c.PaymentTerm,
@@ -205,6 +209,7 @@ func (c *Contract) ToResponse() ContractResponse {
 
 	// Add project info
 	resp.ProjectID = c.Lot.ProjectID
+	resp.ProjectGUID = c.Lot.Project.GUID
 	resp.ProjectName = c.Lot.Project.Name
 	resp.ProjectAddress = c.Lot.Project.Address
 
