@@ -41,9 +41,12 @@ func (h *ProjectHandler) Index(c *gin.Context) {
 	query.Page, _ = strconv.Atoi(c.DefaultQuery("page", "1"))
 	query.PerPage, _ = strconv.Atoi(c.DefaultQuery("per_page", "20"))
 	query.Search = c.Query("search_term")
+	if guid := c.Query("guid"); guid != "" {
+		query.Filters["guid"] = guid
+	}
 
 	// Parse sort parameter (format: field-direction, e.g. name-asc)
-	if sort := c.Query("sort"); sort != "" {
+	if sort := c.Query("sort"); sort != "" && sort != "No Sort" {
 		parts := strings.Split(sort, "-")
 		query.SortBy = parts[0]
 		if len(parts) > 1 {

@@ -42,6 +42,9 @@ func (h *ContractHandler) Index(c *gin.Context) {
 	query.PerPage, _ = strconv.Atoi(c.DefaultQuery("per_page", "20"))
 	query.Search = c.Query("search_term")
 	query.Status = c.Query("status")
+	if guid := c.Query("guid"); guid != "" {
+		query.Filters["guid"] = guid
+	}
 	if startDate := c.Query("start_date"); startDate != "" {
 		query.Filters["start_date"] = startDate
 	}

@@ -61,6 +61,11 @@ func (s *ProjectService) Update(ctx context.Context, project *models.Project, ac
 		return err
 	}
 
+	// Ensure GUID is preserved if not provided in the update
+	if project.GUID == "" {
+		project.GUID = existing.GUID
+	}
+
 	// Check if any of these fields changed: Unidad de Medida, Precio por Unidad, Tasa de Interés, Tasa de Comisión
 	// Check if any of these fields changed: Unidad de Medida, Precio por Unidad, Tasa de Interés, Tasas de Comisión
 	measurementUnitChanged := existing.MeasurementUnit != project.MeasurementUnit

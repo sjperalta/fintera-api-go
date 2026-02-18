@@ -51,7 +51,7 @@ func (h *PaymentHandler) Index(c *gin.Context) {
 	}
 
 	// Parse sort parameter (format: field-direction)
-	if sort := c.Query("sort"); sort != "" {
+	if sort := c.Query("sort"); sort != "" && sort != "No Sort" {
 		parts := strings.Split(sort, "-")
 		query.SortBy = parts[0]
 		if len(parts) > 1 {
