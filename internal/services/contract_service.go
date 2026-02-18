@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/sjperalta/fintera-api/internal/jobs"
 	"github.com/sjperalta/fintera-api/internal/models"
 	"github.com/sjperalta/fintera-api/internal/repository"
@@ -74,6 +75,12 @@ func (s *ContractService) Create(ctx context.Context, contract *models.Contract)
 	if err != nil {
 		return err
 	}
+
+	// Auto-generate GUID if not provided
+	if contract.GUID == "" {
+		contract.GUID = uuid.New().String()
+	}
+
 	if !lot.IsAvailable() {
 		return errors.New("el lote no está disponible")
 	}

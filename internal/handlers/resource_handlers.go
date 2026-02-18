@@ -42,6 +42,15 @@ func (h *ProjectHandler) Index(c *gin.Context) {
 	query.PerPage, _ = strconv.Atoi(c.DefaultQuery("per_page", "20"))
 	query.Search = c.Query("search_term")
 
+	// Parse sort parameter (format: field-direction, e.g. name-asc)
+	if sort := c.Query("sort"); sort != "" {
+		parts := strings.Split(sort, "-")
+		query.SortBy = parts[0]
+		if len(parts) > 1 {
+			query.SortDir = parts[1]
+		}
+	}
+
 	projects, total, err := h.projectService.List(c.Request.Context(), query)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})

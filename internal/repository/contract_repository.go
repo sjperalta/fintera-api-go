@@ -454,8 +454,14 @@ func (r *paymentRepository) List(ctx context.Context, query *ListQuery) ([]model
 	if query.SortBy != "" {
 		field := query.SortBy
 		// Map frontend fields to database columns if necessary
-		if field == "updated_at" || field == "created_at" || field == "due_date" || field == "payment_date" {
+		switch field {
+		case "updated_at", "created_at", "due_date", "payment_date":
 			field = "payments." + field
+		case "applicant":
+			// Sort by the applicant's full name via contract → user join
+			db = db.Joins("LEFT JOIN contracts AS sort_c ON sort_c.id = payments.contract_id").
+				Joins("LEFT JOIN users AS sort_u ON sort_u.id = sort_c.applicant_user_id")
+			field = "sort_u.full_name"
 		}
 
 		order := field

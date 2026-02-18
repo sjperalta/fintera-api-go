@@ -36,6 +36,7 @@ func (Project) TableName() string {
 // ProjectResponse is the JSON response format for projects
 type ProjectResponse struct {
 	ID                   uint      `json:"id"`
+	GUID                 string    `json:"guid"`
 	Name                 string    `json:"name"`
 	Description          string    `json:"description"`
 	ProjectType          string    `json:"project_type"`
@@ -71,6 +72,7 @@ func (p *Project) ToResponse() ProjectResponse {
 
 	return ProjectResponse{
 		ID:                   p.ID,
+		GUID:                 p.GUID,
 		Name:                 p.Name,
 		Description:          p.Description,
 		ProjectType:          p.ProjectType,
