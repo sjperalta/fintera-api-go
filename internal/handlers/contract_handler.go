@@ -605,11 +605,15 @@ func (h *ContractHandler) Delete(c *gin.Context) {
 // @Router /projects/{project_id}/lots/{lot_id}/contracts/{contract_id}/ledger [get]
 func (h *ContractHandler) Ledger(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("contract_id"), 10, 32)
-	contract, err := h.contractService.FindByID(c.Request.Context(), uint(id))
+	_, err := h.contractService.FindByID(c.Request.Context(), uint(id))
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Contrato no encontrado"})
 		return
 	}
-
-	c.JSON(http.StatusOK, gin.H{"ledger_entries": contract.LedgerEntries})
+	entries, err := h.contractService.GetLedgerEntries(c.Request.Context(), uint(id))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ledger_entries": entries})
 }

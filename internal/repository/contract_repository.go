@@ -56,10 +56,13 @@ func (r *contractRepository) FindByID(ctx context.Context, id uint) (*models.Con
 
 func (r *contractRepository) FindByIDWithDetails(ctx context.Context, id uint) (*models.Contract, error) {
 	var contract models.Contract
+	// Load contract + Lot, Project, ApplicantUser, Creator in one query via Joins (avoids 4 separate Preload round-trips).
+	// Payments and LedgerEntries are one-to-many so we keep 2 Preloads (3 queries total instead of 6).
 	err := r.db.WithContext(ctx).
-		Preload("Lot.Project").
-		Preload("ApplicantUser").
-		Preload("Creator").
+		Joins("Lot").
+		Joins("Lot.Project").
+		Joins("ApplicantUser").
+		Joins("Creator").
 		Preload("Payments", func(db *gorm.DB) *gorm.DB {
 			return db.Order("due_date ASC")
 		}).
@@ -167,7 +170,7 @@ func (r *contractRepository) List(ctx context.Context, query *ContractQuery) ([]
 		db = db.Where("contracts.guid = ?", val)
 	}
 
-	// Apply search
+	// Apply search (JOINs only for filtering; associations loaded via Preload below)
 	if query.Search != "" {
 		search := "%" + query.Search + "%"
 		db = db.Joins("LEFT JOIN users ON users.id = contracts.applicant_user_id").
@@ -177,8 +180,11 @@ func (r *contractRepository) List(ctx context.Context, query *ContractQuery) ([]
 				search, search, search, search, search)
 	}
 
-	// Count total
-	db.Count(&total)
+	// Count total using a separate session so the main query is not altered by Count()
+	countDB := db.Session(&gorm.Session{})
+	if err := countDB.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
 
 	// Apply sorting
 	if query.SortBy != "" {
@@ -196,7 +202,7 @@ func (r *contractRepository) List(ctx context.Context, query *ContractQuery) ([]
 		db = db.Offset((query.Page - 1) * query.PerPage).Limit(query.PerPage)
 	}
 
-	// Load associations
+	// Load associations (Lot.Project, ApplicantUser, Creator)
 	err := db.
 		Preload("Lot.Project").
 		Preload("ApplicantUser").
