@@ -56,6 +56,11 @@ func (s *ContractService) FindByID(ctx context.Context, id uint) (*models.Contra
 	return s.repo.FindByID(ctx, id)
 }
 
+// GetLedgerEntries returns ledger entries for a contract (lightweight; used by Ledger endpoint).
+func (s *ContractService) GetLedgerEntries(ctx context.Context, contractID uint) ([]models.ContractLedgerEntry, error) {
+	return s.ledgerRepo.FindByContractID(ctx, contractID)
+}
+
 // FindByIDWithDetails gets a contract by ID with all nested associations preloaded
 func (s *ContractService) FindByIDWithDetails(ctx context.Context, id uint) (*models.Contract, error) {
 	return s.repo.FindByIDWithDetails(ctx, id)

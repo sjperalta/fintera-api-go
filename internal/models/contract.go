@@ -29,7 +29,7 @@ type Contract struct {
 	TotalPaid        float64    `gorm:"-" json:"total_paid"`             // Transient field for list view
 	DocumentPaths    *string    `gorm:"type:text" json:"document_paths"` // JSON string of document paths
 	ClosedAt         *time.Time `json:"closed_at"`
-	CreatedAt        time.Time  `json:"created_at"`
+	CreatedAt        time.Time  `gorm:"index" json:"created_at"` // index for list sort and date filters
 	UpdatedAt        time.Time  `json:"updated_at"`
 
 	// Associations
