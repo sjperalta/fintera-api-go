@@ -15,6 +15,7 @@ type LedgerRepository interface {
 	FindByPaymentID(ctx context.Context, paymentID uint) ([]models.ContractLedgerEntry, error)
 	CalculateBalance(ctx context.Context, contractID uint) (float64, error)
 	FindOrCreateByPaymentAndType(ctx context.Context, entry *models.ContractLedgerEntry) error
+	BatchUpsertInterest(ctx context.Context, entries []models.ContractLedgerEntry) error
 	DeleteByContractID(ctx context.Context, contractID uint) error
 }
 
@@ -99,6 +100,76 @@ func (r *ledgerRepository) FindOrCreateByPaymentAndType(ctx context.Context, ent
 
 	// Create new entry
 	return r.Create(ctx, entry)
+}
+
+// BatchUpsertInterest handles batch creation or update of interest ledger entries
+func (r *ledgerRepository) BatchUpsertInterest(ctx context.Context, entries []models.ContractLedgerEntry) error {
+	if len(entries) == 0 {
+		return nil
+	}
+
+	// 1. Collect all PaymentIDs
+	paymentIDs := make([]uint, 0, len(entries))
+	for _, e := range entries {
+		if e.PaymentID != nil {
+			paymentIDs = append(paymentIDs, *e.PaymentID)
+		}
+	}
+
+	// 2. Find existing interest entries for these payments
+	var existing []models.ContractLedgerEntry
+	if err := r.db.WithContext(ctx).
+		Where("payment_id IN ? AND entry_type = ?", paymentIDs, models.EntryTypeInterest).
+		Find(&existing).Error; err != nil {
+		return err
+	}
+
+	// 3. Map existing entries by PaymentID for quick lookup
+	existingMap := make(map[uint]models.ContractLedgerEntry)
+	for _, e := range existing {
+		if e.PaymentID != nil {
+			existingMap[*e.PaymentID] = e
+		}
+	}
+
+	// 4. Separate into Create and Update lists
+	var toCreate []models.ContractLedgerEntry
+	var toUpdate []models.ContractLedgerEntry
+
+	for _, entry := range entries {
+		if e, ok := existingMap[*entry.PaymentID]; ok {
+			// Update fields
+			e.Amount = entry.Amount
+			e.Description = entry.Description
+			e.EntryDate = entry.EntryDate
+			toUpdate = append(toUpdate, e)
+		} else {
+			// New entry
+			toCreate = append(toCreate, entry)
+		}
+	}
+
+	// 5. Execute in transaction
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Bulk Insert
+		if len(toCreate) > 0 {
+			if err := tx.Create(&toCreate).Error; err != nil {
+				return err
+			}
+		}
+		// Bulk Update (simulated via loop in transaction for safety/simplicity)
+		for _, u := range toUpdate {
+			if err := tx.Model(&models.ContractLedgerEntry{}).Where("id = ?", u.ID).
+				Updates(map[string]interface{}{
+					"amount":      u.Amount,
+					"description": u.Description,
+					"entry_date":  u.EntryDate,
+				}).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 // DeleteByContractID deletes all ledger entries for a contract (used when canceling)

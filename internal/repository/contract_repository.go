@@ -352,6 +352,7 @@ type PaymentRepository interface {
 	FindPaidByMonth(ctx context.Context, month, year int) ([]models.Payment, error)
 	GetMonthlyStats(ctx context.Context) (*PaymentStats, error)
 	FindByUserID(ctx context.Context, userID uint) ([]models.Payment, error)
+	BatchUpdateInterest(ctx context.Context, updates map[uint]float64) error
 }
 
 type paymentRepository struct {
@@ -654,6 +655,26 @@ func (r *paymentRepository) FindByUserID(ctx context.Context, userID uint) ([]mo
 		Order("payments.due_date ASC").
 		Find(&payments).Error
 	return payments, err
+}
+
+func (r *paymentRepository) BatchUpdateInterest(ctx context.Context, updates map[uint]float64) error {
+	if len(updates) == 0 {
+		return nil
+	}
+
+	// Use a transaction to perform updates
+	// While not a single SQL statement, this is much better than separate transactions
+	// as it amortizes transaction overhead. Given typical batch sizes (hundreds),
+	// this is performant enough for Postgres.
+	// A CASE statement would be faster but more complex to construct safely.
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		for id, amount := range updates {
+			if err := tx.Model(&models.Payment{}).Where("id = ?", id).Update("interest_amount", amount).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 // ProjectRepository defines the interface for project data access

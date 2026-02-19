@@ -466,6 +466,9 @@ func (s *PaymentService) CalculateOverdueInterest(ctx context.Context) error {
 	overdueCount := 0
 	totalInterestCalculated := 0.0
 
+	var ledgerEntries []models.ContractLedgerEntry
+	paymentUpdates := make(map[uint]float64)
+
 	for _, payment := range payments {
 		// Filter: Only Installments
 		if payment.PaymentType != models.PaymentTypeInstallment {
@@ -502,14 +505,11 @@ func (s *PaymentService) CalculateOverdueInterest(ctx context.Context) error {
 		// Logic: "amount of debt" = payment.Amount (the installment amount)
 		interestAmount := (payment.Amount * float64(daysOverdue) / 365.0) * interestRate
 
-		// Update Ledger Entry
 		// Rule: "balance and ledger has debt form, everything start in negative then down to zero"
 		// Logic: Interest increases debt. Debt is negative. So Interest Entry must be NEGATIVE.
-		// Rule: "this should be calculated daily" -> Update the *accumulated* interest entry to reflect current total.
-
 		description := fmt.Sprintf("Interés acumulado por mora (%d días) - Pago #%d", daysOverdue, payment.ID)
 
-		entry := &models.ContractLedgerEntry{
+		entry := models.ContractLedgerEntry{
 			ContractID:  payment.ContractID,
 			PaymentID:   &payment.ID,
 			Amount:      -interestAmount, // NEGATIVE to increase debt
@@ -518,20 +518,27 @@ func (s *PaymentService) CalculateOverdueInterest(ctx context.Context) error {
 			EntryDate:   time.Now(),
 		}
 
-		// FindOrCreate updates the existing entry for this payment if it exists, maintaining strict "current total" logic
-		if err := s.ledgerRepo.FindOrCreateByPaymentAndType(ctx, entry); err != nil {
-			logger.Error("Failed to update interest ledger entry", "payment_id", payment.ID, "error", err)
-			continue
-		}
-
-		// Update the payment's InterestAmount field for display
-		payment.InterestAmount = &interestAmount
-		if err := s.repo.Update(ctx, &payment); err != nil {
-			logger.Error("Failed to update payment interest amount", "payment_id", payment.ID, "error", err)
-		}
+		ledgerEntries = append(ledgerEntries, entry)
+		paymentUpdates[payment.ID] = interestAmount
 
 		overdueCount++
 		totalInterestCalculated += interestAmount
+	}
+
+	// Batch update ledger entries
+	if len(ledgerEntries) > 0 {
+		if err := s.ledgerRepo.BatchUpsertInterest(ctx, ledgerEntries); err != nil {
+			logger.Error("Failed to batch update interest ledger entries", "error", err)
+			return err
+		}
+	}
+
+	// Batch update payments
+	if len(paymentUpdates) > 0 {
+		if err := s.repo.BatchUpdateInterest(ctx, paymentUpdates); err != nil {
+			logger.Error("Failed to batch update payment interest amounts", "error", err)
+			return err
+		}
 	}
 
 	// Notify Admins

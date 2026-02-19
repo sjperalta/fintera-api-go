@@ -13,7 +13,8 @@ import (
 
 // Mock LedgerRepository
 type mockLedgerRepository struct {
-	mockFindOrCreate func(ctx context.Context, entry *models.ContractLedgerEntry) error
+	mockFindOrCreate    func(ctx context.Context, entry *models.ContractLedgerEntry) error
+	mockBatchUpsert     func(ctx context.Context, entries []models.ContractLedgerEntry) error
 }
 
 func (m *mockLedgerRepository) Create(ctx context.Context, entry *models.ContractLedgerEntry) error {
@@ -31,6 +32,12 @@ func (m *mockLedgerRepository) CalculateBalance(ctx context.Context, contractID 
 func (m *mockLedgerRepository) FindOrCreateByPaymentAndType(ctx context.Context, entry *models.ContractLedgerEntry) error {
 	if m.mockFindOrCreate != nil {
 		return m.mockFindOrCreate(ctx, entry)
+	}
+	return nil
+}
+func (m *mockLedgerRepository) BatchUpsertInterest(ctx context.Context, entries []models.ContractLedgerEntry) error {
+	if m.mockBatchUpsert != nil {
+		return m.mockBatchUpsert(ctx, entries)
 	}
 	return nil
 }
@@ -67,8 +74,9 @@ func (m *mockNotificationRepository) Create(ctx context.Context, notification *m
 // Redefine mock here to add FindOverdue support
 type mockPaymentRepositoryWithOverdue struct {
 	repository.PaymentRepository
-	mockFindOverdue func(ctx context.Context) ([]models.Payment, error)
-	mockUpdate      func(ctx context.Context, payment *models.Payment) error
+	mockFindOverdue    func(ctx context.Context) ([]models.Payment, error)
+	mockUpdate         func(ctx context.Context, payment *models.Payment) error
+	mockBatchUpdate    func(ctx context.Context, updates map[uint]float64) error
 }
 
 func (m *mockPaymentRepositoryWithOverdue) FindOverdue(ctx context.Context) ([]models.Payment, error) {
@@ -81,6 +89,13 @@ func (m *mockPaymentRepositoryWithOverdue) FindOverdue(ctx context.Context) ([]m
 func (m *mockPaymentRepositoryWithOverdue) Update(ctx context.Context, payment *models.Payment) error {
 	if m.mockUpdate != nil {
 		return m.mockUpdate(ctx, payment)
+	}
+	return nil
+}
+
+func (m *mockPaymentRepositoryWithOverdue) BatchUpdateInterest(ctx context.Context, updates map[uint]float64) error {
+	if m.mockBatchUpdate != nil {
+		return m.mockBatchUpdate(ctx, updates)
 	}
 	return nil
 }
@@ -122,6 +137,9 @@ func (m *mockPaymentRepositoryWithOverdue) FindPaidByMonth(ctx context.Context, 
 	return nil, nil
 }
 func (m *mockPaymentRepositoryWithOverdue) GetMonthlyStats(ctx context.Context) (*repository.PaymentStats, error) {
+	return nil, nil
+}
+func (m *mockPaymentRepositoryWithOverdue) FindByUserID(ctx context.Context, userID uint) ([]models.Payment, error) {
 	return nil, nil
 }
 
@@ -177,11 +195,13 @@ func TestCalculateOverdueInterest_Logic(t *testing.T) {
 		return []models.Payment{payment}, nil
 	}
 
-	// 2. Setup Ledger FindOrCreate expectations
+	// 2. Setup Ledger BatchUpsertInterest expectations
 	ledgerCalled := false
-	mockLedgerRepo.mockFindOrCreate = func(ctx context.Context, entry *models.ContractLedgerEntry) error {
+	mockLedgerRepo.mockBatchUpsert = func(ctx context.Context, entries []models.ContractLedgerEntry) error {
 		ledgerCalled = true
+		assert.Len(t, entries, 1)
 
+		entry := entries[0]
 		// Verify Entry Fields
 		assert.Equal(t, contract.ID, entry.ContractID)
 		assert.Equal(t, payment.ID, *entry.PaymentID)
@@ -198,6 +218,16 @@ func TestCalculateOverdueInterest_Logic(t *testing.T) {
 		return nil
 	}
 
+	paymentUpdateCalled := false
+	mockPaymentRepo.mockBatchUpdate = func(ctx context.Context, updates map[uint]float64) error {
+		paymentUpdateCalled = true
+		assert.Len(t, updates, 1)
+
+		expectedInterest := (5000.0 * 10.0 / 365.0) * 0.10
+		assert.InDelta(t, expectedInterest, updates[payment.ID], 0.001, "Payment update amount mismatch")
+		return nil
+	}
+
 	// 3. Setup Notification Logic expectations
 	mockUserRepo.mockFindAdmins = func(ctx context.Context) ([]models.User, error) {
 		return []models.User{{ID: 99, Email: "admin@example.com"}}, nil
@@ -209,7 +239,8 @@ func TestCalculateOverdueInterest_Logic(t *testing.T) {
 	// Execute
 	err := service.CalculateOverdueInterest(context.Background())
 	assert.NoError(t, err)
-	assert.True(t, ledgerCalled, "FindOrCreateByPaymentAndType should be called")
+	assert.True(t, ledgerCalled, "BatchUpsertInterest should be called")
+	assert.True(t, paymentUpdateCalled, "BatchUpdateInterest should be called")
 
 	// Wait a bit for async notification
 	time.Sleep(100 * time.Millisecond)
