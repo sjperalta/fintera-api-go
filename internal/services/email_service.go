@@ -61,18 +61,29 @@ func (s *EmailService) validateEmail(email string) error {
 	return nil
 }
 
-func (s *EmailService) SendRecoveryCode(ctx context.Context, user *models.User, code string) error {
+// checkEmailPreconditions checks if email notifications are enabled and configured, and if the user has a valid email.
+// It returns false if emails are disabled or if there's an error.
+// The caller should return the error if this returns false.
+func (s *EmailService) checkEmailPreconditions(user *models.User, operation string) (bool, error) {
 	if !s.config.EnableEmailNotifications {
-		logger.Info(fmt.Sprintf("🚫 [Email Disabled] Skipping recovery email to %s", user.Email))
-		return nil
+		logger.Info(fmt.Sprintf("🚫 [Email Disabled] Skipping %s to %s", operation, user.Email))
+		return false, nil
 	}
 
 	if err := s.ensureEmailConfigured(); err != nil {
-		logger.Error(fmt.Sprintf("Failed to send recovery code to %s: %v", user.Email, err))
-		return err
+		logger.Error(fmt.Sprintf("Failed to send %s to %s: %v", operation, user.Email, err))
+		return false, err
 	}
 	if err := s.validateEmail(user.Email); err != nil {
-		logger.Warn(fmt.Sprintf("Skipping recovery email for user %s (ID: %d): %v", user.FullName, user.ID, err))
+		logger.Warn(fmt.Sprintf("Skipping %s for user %s (ID: %d): %v", operation, user.FullName, user.ID, err))
+		return false, err
+	}
+
+	return true, nil
+}
+
+func (s *EmailService) SendRecoveryCode(ctx context.Context, user *models.User, code string) error {
+	if ok, err := s.checkEmailPreconditions(user, "recovery email"); !ok {
 		return err
 	}
 
@@ -112,16 +123,7 @@ func (s *EmailService) SendRecoveryCode(ctx context.Context, user *models.User, 
 }
 
 func (s *EmailService) SendAccountCreated(ctx context.Context, user *models.User, tempPassword string) error {
-	if !s.config.EnableEmailNotifications {
-		logger.Info(fmt.Sprintf("🚫 [Email Disabled] Skipping account created email to %s", user.Email))
-		return nil
-	}
-	if err := s.ensureEmailConfigured(); err != nil {
-		logger.Error(fmt.Sprintf("Failed to send account created email to %s: %v", user.Email, err))
-		return err
-	}
-	if err := s.validateEmail(user.Email); err != nil {
-		logger.Warn(fmt.Sprintf("Skipping account created email for user %s (ID: %d): %v", user.FullName, user.ID, err))
+	if ok, err := s.checkEmailPreconditions(user, "account created email"); !ok {
 		return err
 	}
 
@@ -160,16 +162,7 @@ func (s *EmailService) SendAccountCreated(ctx context.Context, user *models.User
 }
 
 func (s *EmailService) SendContractSubmitted(ctx context.Context, contract *models.Contract) error {
-	if !s.config.EnableEmailNotifications {
-		logger.Info(fmt.Sprintf("🚫 [Email Disabled] Skipping contract submitted email to %s", contract.ApplicantUser.Email))
-		return nil
-	}
-	if err := s.ensureEmailConfigured(); err != nil {
-		logger.Error(fmt.Sprintf("Failed to send contract submitted email to %s: %v", contract.ApplicantUser.Email, err))
-		return err
-	}
-	if err := s.validateEmail(contract.ApplicantUser.Email); err != nil {
-		logger.Warn(fmt.Sprintf("Skipping contract submitted email for contract #%d: %v", contract.ID, err))
+	if ok, err := s.checkEmailPreconditions(&contract.ApplicantUser, "contract submitted email"); !ok {
 		return err
 	}
 
@@ -229,16 +222,7 @@ func (s *EmailService) SendContractSubmitted(ctx context.Context, contract *mode
 }
 
 func (s *EmailService) SendContractApproved(ctx context.Context, contract *models.Contract, monthlyPayment float64, firstPaymentDate string) error {
-	if !s.config.EnableEmailNotifications {
-		logger.Info(fmt.Sprintf("🚫 [Email Disabled] Skipping contract approved email to %s", contract.ApplicantUser.Email))
-		return nil
-	}
-	if err := s.ensureEmailConfigured(); err != nil {
-		logger.Error(fmt.Sprintf("Failed to send contract approved email to %s: %v", contract.ApplicantUser.Email, err))
-		return err
-	}
-	if err := s.validateEmail(contract.ApplicantUser.Email); err != nil {
-		logger.Warn(fmt.Sprintf("Skipping contract approved email for contract #%d: %v", contract.ID, err))
+	if ok, err := s.checkEmailPreconditions(&contract.ApplicantUser, "contract approved email"); !ok {
 		return err
 	}
 
@@ -305,16 +289,7 @@ func (s *EmailService) SendContractApproved(ctx context.Context, contract *model
 
 // SendContractRejected sends an email to the contract owner with the rejection reason.
 func (s *EmailService) SendContractRejected(ctx context.Context, contract *models.Contract, reason string) error {
-	if !s.config.EnableEmailNotifications {
-		logger.Info(fmt.Sprintf("🚫 [Email Disabled] Skipping contract rejected email to %s", contract.ApplicantUser.Email))
-		return nil
-	}
-	if err := s.ensureEmailConfigured(); err != nil {
-		logger.Error(fmt.Sprintf("Failed to send contract rejected email to %s: %v", contract.ApplicantUser.Email, err))
-		return err
-	}
-	if err := s.validateEmail(contract.ApplicantUser.Email); err != nil {
-		logger.Warn(fmt.Sprintf("Skipping contract rejected email for contract #%d: %v", contract.ID, err))
+	if ok, err := s.checkEmailPreconditions(&contract.ApplicantUser, "contract rejected email"); !ok {
 		return err
 	}
 
@@ -364,16 +339,7 @@ func (s *EmailService) SendContractRejected(ctx context.Context, contract *model
 }
 
 func (s *EmailService) SendPaymentApproved(ctx context.Context, payment *models.Payment) error {
-	if !s.config.EnableEmailNotifications {
-		logger.Info(fmt.Sprintf("🚫 [Email Disabled] Skipping payment approved email to %s", payment.Contract.ApplicantUser.Email))
-		return nil
-	}
-	if err := s.ensureEmailConfigured(); err != nil {
-		logger.Error(fmt.Sprintf("Failed to send payment approved email to %s: %v", payment.Contract.ApplicantUser.Email, err))
-		return err
-	}
-	if err := s.validateEmail(payment.Contract.ApplicantUser.Email); err != nil {
-		logger.Warn(fmt.Sprintf("Skipping payment approved email for payment #%d: %v", payment.ID, err))
+	if ok, err := s.checkEmailPreconditions(&payment.Contract.ApplicantUser, "payment approved email"); !ok {
 		return err
 	}
 
@@ -441,15 +407,7 @@ func (s *EmailService) SendPaymentApproved(ctx context.Context, payment *models.
 }
 
 func (s *EmailService) SendPaymentRejected(ctx context.Context, contract *models.Contract, amount float64, dueDate string, reason string) error {
-	if !s.config.EnableEmailNotifications {
-		logger.Info(fmt.Sprintf("🚫 [Email Disabled] Skipping payment rejected email to %s", contract.ApplicantUser.Email))
-		return nil
-	}
-	if err := s.ensureEmailConfigured(); err != nil {
-		return err
-	}
-	if err := s.validateEmail(contract.ApplicantUser.Email); err != nil {
-		logger.Warn(fmt.Sprintf("Skipping payment rejected email for contract #%d: %v", contract.ID, err))
+	if ok, err := s.checkEmailPreconditions(&contract.ApplicantUser, "payment rejected email"); !ok {
 		return err
 	}
 
@@ -499,16 +457,7 @@ type OverduePaymentData struct {
 }
 
 func (s *EmailService) SendOverduePayments(ctx context.Context, user *models.User, payments []models.Payment) error {
-	if !s.config.EnableEmailNotifications {
-		logger.Info(fmt.Sprintf("🚫 [Email Disabled] Skipping overdue payments email to %s", user.Email))
-		return nil
-	}
-	if err := s.ensureEmailConfigured(); err != nil {
-		logger.Error(fmt.Sprintf("Failed to send overdue payments email to %s: %v", user.Email, err))
-		return err
-	}
-	if err := s.validateEmail(user.Email); err != nil {
-		logger.Warn(fmt.Sprintf("Skipping overdue payments email for user %s (ID: %d): %v", user.FullName, user.ID, err))
+	if ok, err := s.checkEmailPreconditions(user, "overdue payments email"); !ok {
 		return err
 	}
 
@@ -555,16 +504,7 @@ func (s *EmailService) SendOverduePayments(ctx context.Context, user *models.Use
 
 // SendUpcomingPayments sends a "payment due tomorrow" reminder to the user.
 func (s *EmailService) SendUpcomingPayments(ctx context.Context, user *models.User, payments []models.Payment) error {
-	if !s.config.EnableEmailNotifications {
-		logger.Info(fmt.Sprintf("🚫 [Email Disabled] Skipping upcoming payment email to %s", user.Email))
-		return nil
-	}
-	if err := s.ensureEmailConfigured(); err != nil {
-		logger.Error(fmt.Sprintf("Failed to send upcoming payment email to %s: %v", user.Email, err))
-		return err
-	}
-	if err := s.validateEmail(user.Email); err != nil {
-		logger.Warn(fmt.Sprintf("Skipping upcoming payment email for user %s (ID: %d): %v", user.FullName, user.ID, err))
+	if ok, err := s.checkEmailPreconditions(user, "upcoming payment email"); !ok {
 		return err
 	}
 
@@ -614,16 +554,7 @@ func (s *EmailService) SendUpcomingPayments(ctx context.Context, user *models.Us
 }
 
 func (s *EmailService) SendReservationApproved(ctx context.Context, contract *models.Contract) error {
-	if !s.config.EnableEmailNotifications {
-		logger.Info(fmt.Sprintf("🚫 [Email Disabled] Skipping reservation approved email to %s", contract.ApplicantUser.Email))
-		return nil
-	}
-	if err := s.ensureEmailConfigured(); err != nil {
-		logger.Error(fmt.Sprintf("Failed to send reservation approved email to %s: %v", contract.ApplicantUser.Email, err))
-		return err
-	}
-	if err := s.validateEmail(contract.ApplicantUser.Email); err != nil {
-		logger.Warn(fmt.Sprintf("Skipping reservation approved email for contract #%d: %v", contract.ID, err))
+	if ok, err := s.checkEmailPreconditions(&contract.ApplicantUser, "reservation approved email"); !ok {
 		return err
 	}
 
