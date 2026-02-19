@@ -338,25 +338,9 @@ func (h *LotHandler) Update(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("lot_id"), 10, 32)
 	var lot models.Lot
 
-	var bodyBytes []byte
-	if c.Request.Body != nil {
-		bodyBytes, _ = io.ReadAll(c.Request.Body)
-	}
-	// Restore body for future binding
-	c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
-
-	// 1. Try Nested Structure { "lot": { ... } }
-	var nestedReq struct {
-		Lot models.Lot `json:"lot"`
-	}
-	if err := json.Unmarshal(bodyBytes, &nestedReq); err == nil && nestedReq.Lot.Name != "" {
-		lot = nestedReq.Lot
-	} else {
-		// 2. Try Flat Structure { ... }
-		if err := json.Unmarshal(bodyBytes, &lot); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON format: " + err.Error()})
-			return
-		}
+	if err := BindNestedOrFlat(c, "lot", &lot); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON format: " + err.Error()})
+		return
 	}
 
 	lot.ID = uint(id)
