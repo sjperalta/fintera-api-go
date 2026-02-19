@@ -599,61 +599,6 @@ func (s *ContractService) CapitalRepayment(ctx context.Context, id uint, amount 
 	return nil
 }
 
-// ApplyPrepayment applies a capital repayment to reduce contract balance
-func (s *ContractService) ApplyPrepayment(ctx context.Context, id uint, amount float64) error {
-	if amount <= 0 {
-		return fmt.Errorf("prepayment amount must be greater than 0")
-	}
-
-	contract, err := s.repo.FindByID(ctx, id)
-	if err != nil {
-		return fmt.Errorf("failed to load contract: %w", err)
-	}
-
-	// Check contract is approved
-	if contract.Status != models.ContractStatusApproved {
-		return fmt.Errorf("can only apply prepayment to approved contracts")
-	}
-
-	// Calculate current balance
-	balance, err := s.ledgerRepo.CalculateBalance(ctx, contract.ID)
-	if err != nil {
-		return fmt.Errorf("failed to calculate balance: %w", err)
-	}
-
-	// Check if prepayment exceeds debt (balance is negative, so we check if amount > -balance)
-	if amount > -balance {
-		return fmt.Errorf("prepayment amount %.2f exceeds balance %.2f", amount, balance)
-	}
-
-	// Create prepayment ledger entry (negative amount = credit)
-	prepaymentEntry := &models.ContractLedgerEntry{
-		ContractID:  contract.ID,
-		Amount:      amount, // Positive (payment)
-		Description: fmt.Sprintf("Abono a Capital: L%.2f", amount),
-		EntryType:   models.EntryTypePrepayment,
-		EntryDate:   time.Now(),
-	}
-	if err := s.ledgerRepo.Create(ctx, prepaymentEntry); err != nil {
-		return fmt.Errorf("failed to create prepayment entry: %w", err)
-	}
-
-	// Recalculate balance
-	newBalance, err := s.ledgerRepo.CalculateBalance(ctx, contract.ID)
-	if err != nil {
-		return fmt.Errorf("failed to recalculate balance: %w", err)
-	}
-
-	// Close contract if balance is now <= 0
-	// Close contract if balance is now >= 0 (fully paid)
-	if newBalance >= 0 {
-		if _, err := s.Close(ctx, contract.ID); err != nil {
-			return fmt.Errorf("failed to close contract: %w", err)
-		}
-	}
-
-	return nil
-}
 
 func (s *ContractService) ReleaseUnpaidReservations(ctx context.Context) error {
 	// Find reservations older than 48 hours without payment
