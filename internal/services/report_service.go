@@ -466,9 +466,9 @@ func (s *ReportService) GenerateUserBalancePDF(ctx context.Context, userID uint)
 				}
 				payments = append(payments, PaymentData{
 					PaymentType: paymentTypeLabel,
-					DueDate:     p.DueDate.Format("02/01/2006"),
-					Amount:      fmt.Sprintf("%.2f", p.Amount),
-					PaidAmount:  fmt.Sprintf("%.2f", paid),
+					DueDate:     s.formatDateShort(p.DueDate),
+					Amount:      s.formatCurrency(p.Amount),
+					PaidAmount:  s.formatCurrency(paid),
 					Status:      p.Status,
 				})
 			}
@@ -481,7 +481,7 @@ func (s *ReportService) GenerateUserBalancePDF(ctx context.Context, userID uint)
 
 	data := ReportData{
 		User:      user,
-		Date:      time.Now().Format("02/01/2006"),
+		Date:      s.formatDateShort(time.Now()),
 		Contracts: contractDataList,
 	}
 
@@ -495,165 +495,7 @@ func (s *ReportService) GenerateContractPDF(ctx context.Context, contractID uint
 		return nil, err
 	}
 
-	// Helper for currency formatting
-	toCurrency := func(amount float64) string {
-		return fmt.Sprintf("%.2f", amount)
-	}
-
-	// Helper for date formatting
-	formatDate := func(t time.Time) string {
-		months := []string{"", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"}
-		return fmt.Sprintf("%d de %s del %d", t.Day(), months[t.Month()], t.Year())
-	}
-
-	// Helper for basic number to words (simplified for this context)
-	// Note: A full implementation would be much larger. This is a placeholder or requires a robust impl.
-	// For now, we will use a simplified version or just return the formatted number if too complex.
-	// Real-world usage requires a proper library or comprehensive function.
-	amountToWords := func(amount float64) string {
-		// Ideally use specific library. For now, returning formatted string with currency text.
-		// User can replace with robust logic.
-		return fmt.Sprintf("%.2f", amount)
-	}
-
-	// Prepare Applicant Data
-	clientName := "EL CLIENTE"
-	clientIdentity := "____________________"
-	clientAddress := "____________________"
-	if contract.ApplicantUser.ID != 0 {
-		clientName = contract.ApplicantUser.FullName
-		if contract.ApplicantUser.Identity != "" {
-			clientIdentity = contract.ApplicantUser.Identity
-		}
-		if contract.ApplicantUser.Address != nil && *contract.ApplicantUser.Address != "" {
-			clientAddress = *contract.ApplicantUser.Address
-		}
-	}
-
-	// Prepare Project & Lot Data
-	projectName := "EL PROYECTO"
-	projectAddress := "________________"
-	projectInterestRate := 0.0
-	measurementUnit := "V2" // default
-
-	lotName := "DEL LOTE"
-	lotAddress := ""
-	lotWidth := 0.0
-	lotLength := 0.0
-	lotArea := 0.0
-	lotAreaUnit := 0.0
-
-	if contract.Lot.ID != 0 {
-		lotName = contract.Lot.Name
-		lotWidth = contract.Lot.Width
-		lotLength = contract.Lot.Length
-		lotArea = contract.Lot.Area()
-
-		if contract.Lot.Address != nil {
-			lotAddress = *contract.Lot.Address
-		}
-
-		if contract.Lot.MeasurementUnit != nil {
-			measurementUnit = *contract.Lot.MeasurementUnit
-		}
-
-		if contract.Lot.Project.ID != 0 {
-			projectName = contract.Lot.Project.Name
-			projectAddress = contract.Lot.Project.Address
-			projectInterestRate = contract.Lot.Project.InterestRate
-			if contract.Lot.MeasurementUnit == nil {
-				measurementUnit = contract.Lot.Project.MeasurementUnit
-			}
-		}
-		// Assuming AreaInProjectUnit might be different or needed. Go model doesn't show it explicitly calculated different from Area().
-		lotAreaUnit = lotArea // Simplified
-	}
-
-	amount := 0.0
-	if contract.Amount != nil {
-		amount = *contract.Amount
-	}
-
-	reserveAmount := 0.0
-	if contract.ReserveAmount != nil {
-		reserveAmount = *contract.ReserveAmount
-	}
-
-	downPayment := 0.0
-	if contract.DownPayment != nil {
-		downPayment = *contract.DownPayment
-	}
-
-	financingAmount := amount - reserveAmount - downPayment
-
-	// Payment details
-	firstPaymentDate := "__________"
-	lastPaymentDate := "__________"
-	monthlyPayment := 0.0
-
-	var installments []models.Payment
-	for _, p := range contract.Payments {
-		if p.PaymentType == models.PaymentTypeInstallment {
-			installments = append(installments, p)
-		}
-	}
-
-	if len(installments) > 0 {
-		// Find first and last by due date
-		first := installments[0]
-		last := installments[0]
-		for _, p := range installments {
-			if p.DueDate.Before(first.DueDate) {
-				first = p
-			}
-			if p.DueDate.After(last.DueDate) {
-				last = p
-			}
-		}
-		firstPaymentDate = formatDate(first.DueDate)
-		lastPaymentDate = formatDate(last.DueDate)
-		monthlyPayment = first.Amount // Assuming equal payments roughly
-	}
-
-	maxPaymentDate := ""
-	if contract.MaxPaymentDate != nil {
-		maxPaymentDate = formatDate(*contract.MaxPaymentDate)
-	}
-
-	data := map[string]interface{}{
-		"ClientName":           clientName,
-		"ClientIdentity":       clientIdentity,
-		"ClientAddress":        clientAddress,
-		"ProjectName":          projectName,
-		"ProjectAddress":       projectAddress,
-		"InterestRate":         fmt.Sprintf("%.2f", projectInterestRate),
-		"LotName":              lotName,
-		"LotAddress":           lotAddress,
-		"LotWidth":             fmt.Sprintf("%.2f", lotWidth),
-		"LotLength":            fmt.Sprintf("%.2f", lotLength),
-		"LotAreaM2":            fmt.Sprintf("%.2f", lotArea),
-		"LotAreaUnit":          fmt.Sprintf("%.2f", lotAreaUnit),
-		"MeasurementUnit":      measurementUnit,
-		"Amount":               toCurrency(amount),
-		"AmountWords":          amountToWords(amount), // user can tackle the complexity of spanish words
-		"ReserveAmount":        toCurrency(reserveAmount),
-		"ReserveAmountWords":   amountToWords(reserveAmount),
-		"DownPayment":          toCurrency(downPayment),
-		"DownPaymentWords":     amountToWords(downPayment),
-		"FinancingAmount":      toCurrency(financingAmount),
-		"FinancingAmountWords": amountToWords(financingAmount),
-		"PaymentTerm":          contract.PaymentTerm,
-		"Currency":             contract.Currency,
-		"FirstPaymentDate":     firstPaymentDate,
-		"LastPaymentDate":      lastPaymentDate,
-		"MonthlyPayment":       toCurrency(monthlyPayment),
-		"MonthlyPaymentWords":  amountToWords(monthlyPayment),
-		"Date":                 formatDate(time.Now()),
-		"FinancingType":        contract.FinancingType,
-		"MaxPaymentDate":       maxPaymentDate,
-		"RawDownPayment":       downPayment,
-	}
-
+	data := s.prepareContractPDFData(contract)
 	return s.generatePDF("contract_promise.html", data)
 }
 
@@ -662,11 +504,6 @@ func (s *ReportService) GenerateCustomerRecordPDF(ctx context.Context, contractI
 	contract, err := s.contractRepo.FindByIDWithDetails(ctx, contractID)
 	if err != nil {
 		return nil, err
-	}
-
-	// Helper for currency formatting
-	toCurrency := func(amount float64) string {
-		return fmt.Sprintf("L. %.2f", amount)
 	}
 
 	clientName := contract.ApplicantUser.FullName
@@ -737,10 +574,10 @@ func (s *ReportService) GenerateCustomerRecordPDF(ctx context.Context, contractI
 		}
 	}
 	if !maxDate.IsZero() {
-		endDate = maxDate.Format("02/01/2006")
+		endDate = s.formatDateShort(maxDate)
 	}
 
-	startDate := contract.CreatedAt.Format("02/01/2006")
+	startDate := s.formatDateShort(contract.CreatedAt)
 
 	financingType := contract.FinancingType
 	financingTypeEs := map[string]string{
@@ -764,17 +601,17 @@ func (s *ReportService) GenerateCustomerRecordPDF(ctx context.Context, contractI
 		"Area":              fmt.Sprintf("%s %s", areaStr, measureUnit),
 		"ContractID":        contract.ID,
 		"FinancingType":     financingType,
-		"Price":             toCurrency(effectivePrice),
+		"Price":             s.formatCurrencyWithLempiras(effectivePrice),
 		"HasOverride":       hasOverride,
-		"BasePrice":         toCurrency(basePrice),
-		"OverridePrice":     toCurrency(overridePrice),
-		"ReserveAmount":     toCurrency(reserveAmount),
-		"DownPayment":       toCurrency(downPayment),
-		"InstallmentAmount": toCurrency(installmentAmount),
+		"BasePrice":         s.formatCurrencyWithLempiras(basePrice),
+		"OverridePrice":     s.formatCurrencyWithLempiras(overridePrice),
+		"ReserveAmount":     s.formatCurrencyWithLempiras(reserveAmount),
+		"DownPayment":       s.formatCurrencyWithLempiras(downPayment),
+		"InstallmentAmount": s.formatCurrencyWithLempiras(installmentAmount),
 		"Term":              fmt.Sprintf("%d meses", contract.PaymentTerm),
 		"StartDate":         startDate,
 		"EndDate":           endDate,
-		"GeneratedDate":     time.Now().Format("02/01/2006"),
+		"GeneratedDate":     s.formatDateShort(time.Now()),
 	}
 
 	return s.generatePDF("customer_record.html", data)
@@ -834,17 +671,14 @@ func (s *ReportService) GenerateRescissionContractPDF(ctx context.Context, contr
 	}
 
 	// Date Formatting
-	months := []string{"", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"}
-
 	now := time.Now()
 	dayStr := fmt.Sprintf("%d", now.Day())
-	monthStr := months[now.Month()]
+	monthStr := s.getSpanishMonthFull(now.Month())
 	yearStr := fmt.Sprintf("%d", now.Year())
 
 	contractDate := ""
 	if !contract.CreatedAt.IsZero() {
-		cd := contract.CreatedAt
-		contractDate = fmt.Sprintf("%d de %s de %d", cd.Day(), months[cd.Month()], cd.Year())
+		contractDate = s.formatDateLong(contract.CreatedAt)
 	}
 
 	data := map[string]interface{}{
@@ -862,8 +696,8 @@ func (s *ReportService) GenerateRescissionContractPDF(ctx context.Context, contr
 		"South":              south,
 		"East":               east,
 		"West":               west,
-		"RefundAmount":       fmt.Sprintf("%.2f", refundAmount),
-		"PenaltyAmount":      fmt.Sprintf("%.2f", penaltyAmount),
+		"RefundAmount":       s.formatCurrency(refundAmount),
+		"PenaltyAmount":      s.formatCurrency(penaltyAmount),
 		"Day":                dayStr,
 		"Month":              monthStr,
 		"Year":               yearStr,
@@ -1039,4 +873,164 @@ func getMonthNameSpanish(m time.Month) string {
 		return months[int(m)]
 	}
 	return m.String()[:3]
+}
+
+func (s *ReportService) formatCurrency(amount float64) string {
+	return fmt.Sprintf("%.2f", amount)
+}
+
+func (s *ReportService) formatCurrencyWithLempiras(amount float64) string {
+	return fmt.Sprintf("L. %.2f", amount)
+}
+
+func (s *ReportService) formatDateLong(t time.Time) string {
+	months := []string{"", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"}
+	return fmt.Sprintf("%d de %s del %d", t.Day(), months[t.Month()], t.Year())
+}
+
+func (s *ReportService) formatDateShort(t time.Time) string {
+	return t.Format("02/01/2006")
+}
+
+func (s *ReportService) formatAmountToWords(amount float64) string {
+	return fmt.Sprintf("%.2f", amount)
+}
+
+func (s *ReportService) prepareContractPDFData(contract *models.Contract) map[string]interface{} {
+	// Prepare Applicant Data
+	clientName := "EL CLIENTE"
+	clientIdentity := "____________________"
+	clientAddress := "____________________"
+	if contract.ApplicantUser.ID != 0 {
+		clientName = contract.ApplicantUser.FullName
+		if contract.ApplicantUser.Identity != "" {
+			clientIdentity = contract.ApplicantUser.Identity
+		}
+		if contract.ApplicantUser.Address != nil && *contract.ApplicantUser.Address != "" {
+			clientAddress = *contract.ApplicantUser.Address
+		}
+	}
+
+	// Prepare Project & Lot Data
+	projectName := "EL PROYECTO"
+	projectAddress := "________________"
+	projectInterestRate := 0.0
+	measurementUnit := "V2" // default
+
+	lotName := "DEL LOTE"
+	lotAddress := ""
+	lotWidth := 0.0
+	lotLength := 0.0
+	lotArea := 0.0
+	lotAreaUnit := 0.0
+
+	if contract.Lot.ID != 0 {
+		lotName = contract.Lot.Name
+		lotWidth = contract.Lot.Width
+		lotLength = contract.Lot.Length
+		lotArea = contract.Lot.Area()
+
+		if contract.Lot.Address != nil {
+			lotAddress = *contract.Lot.Address
+		}
+
+		if contract.Lot.MeasurementUnit != nil {
+			measurementUnit = *contract.Lot.MeasurementUnit
+		}
+
+		if contract.Lot.Project.ID != 0 {
+			projectName = contract.Lot.Project.Name
+			projectAddress = contract.Lot.Project.Address
+			projectInterestRate = contract.Lot.Project.InterestRate
+			if contract.Lot.MeasurementUnit == nil {
+				measurementUnit = contract.Lot.Project.MeasurementUnit
+			}
+		}
+		lotAreaUnit = lotArea
+	}
+
+	amount := 0.0
+	if contract.Amount != nil {
+		amount = *contract.Amount
+	}
+
+	reserveAmount := 0.0
+	if contract.ReserveAmount != nil {
+		reserveAmount = *contract.ReserveAmount
+	}
+
+	downPayment := 0.0
+	if contract.DownPayment != nil {
+		downPayment = *contract.DownPayment
+	}
+
+	financingAmount := amount - reserveAmount - downPayment
+
+	// Payment details
+	firstPaymentDate := "__________"
+	lastPaymentDate := "__________"
+	monthlyPayment := 0.0
+
+	var installments []models.Payment
+	for _, p := range contract.Payments {
+		if p.PaymentType == models.PaymentTypeInstallment {
+			installments = append(installments, p)
+		}
+	}
+
+	if len(installments) > 0 {
+		// Find first and last by due date
+		first := installments[0]
+		last := installments[0]
+		for _, p := range installments {
+			if p.DueDate.Before(first.DueDate) {
+				first = p
+			}
+			if p.DueDate.After(last.DueDate) {
+				last = p
+			}
+		}
+		firstPaymentDate = s.formatDateLong(first.DueDate)
+		lastPaymentDate = s.formatDateLong(last.DueDate)
+		monthlyPayment = first.Amount
+	}
+
+	maxPaymentDate := ""
+	if contract.MaxPaymentDate != nil {
+		maxPaymentDate = s.formatDateLong(*contract.MaxPaymentDate)
+	}
+
+	return map[string]interface{}{
+		"ClientName":           clientName,
+		"ClientIdentity":       clientIdentity,
+		"ClientAddress":        clientAddress,
+		"ProjectName":          projectName,
+		"ProjectAddress":       projectAddress,
+		"InterestRate":         fmt.Sprintf("%.2f", projectInterestRate),
+		"LotName":              lotName,
+		"LotAddress":           lotAddress,
+		"LotWidth":             fmt.Sprintf("%.2f", lotWidth),
+		"LotLength":            fmt.Sprintf("%.2f", lotLength),
+		"LotAreaM2":            fmt.Sprintf("%.2f", lotArea),
+		"LotAreaUnit":          fmt.Sprintf("%.2f", lotAreaUnit),
+		"MeasurementUnit":      measurementUnit,
+		"Amount":               s.formatCurrency(amount),
+		"AmountWords":          s.formatAmountToWords(amount),
+		"ReserveAmount":        s.formatCurrency(reserveAmount),
+		"ReserveAmountWords":   s.formatAmountToWords(reserveAmount),
+		"DownPayment":          s.formatCurrency(downPayment),
+		"DownPaymentWords":     s.formatAmountToWords(downPayment),
+		"FinancingAmount":      s.formatCurrency(financingAmount),
+		"FinancingAmountWords": s.formatAmountToWords(financingAmount),
+		"PaymentTerm":          contract.PaymentTerm,
+		"Currency":             contract.Currency,
+		"FirstPaymentDate":     firstPaymentDate,
+		"LastPaymentDate":      lastPaymentDate,
+		"MonthlyPayment":       s.formatCurrency(monthlyPayment),
+		"MonthlyPaymentWords":  s.formatAmountToWords(monthlyPayment),
+		"Date":                 s.formatDateLong(time.Now()),
+		"FinancingType":        contract.FinancingType,
+		"MaxPaymentDate":       maxPaymentDate,
+		"RawDownPayment":       downPayment,
+	}
 }
