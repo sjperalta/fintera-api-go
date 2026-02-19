@@ -1,10 +1,7 @@
 package handlers
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -100,26 +97,9 @@ func (h *ProjectHandler) Show(c *gin.Context) {
 func (h *ProjectHandler) Create(c *gin.Context) {
 	var project models.Project
 
-	var bodyBytes []byte
-	if c.Request.Body != nil {
-		bodyBytes, _ = io.ReadAll(c.Request.Body)
-	}
-	// Restore body for future binding
-	c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
-
-	// 1. Try Nested Structure { "project": { ... } }
-	var nestedReq struct {
-		Project models.Project `json:"project"`
-	}
-	// Check if "project" key exists in valid json and binds correctly
-	if err := json.Unmarshal(bodyBytes, &nestedReq); err == nil && nestedReq.Project.Name != "" {
-		project = nestedReq.Project
-	} else {
-		// 2. Try Flat Structure { ... }
-		if err := json.Unmarshal(bodyBytes, &project); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON format: " + err.Error()})
-			return
-		}
+	if err := BindNestedOrFlat(c, "project", &project); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON format: " + err.Error()})
+		return
 	}
 
 	actorID := middleware.GetUserID(c)
@@ -145,25 +125,9 @@ func (h *ProjectHandler) Update(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("project_id"), 10, 32)
 	var project models.Project
 
-	var bodyBytes []byte
-	if c.Request.Body != nil {
-		bodyBytes, _ = io.ReadAll(c.Request.Body)
-	}
-	// Restore body for future binding
-	c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
-
-	// 1. Try Nested Structure { "project": { ... } }
-	var nestedReq struct {
-		Project models.Project `json:"project"`
-	}
-	if err := json.Unmarshal(bodyBytes, &nestedReq); err == nil && nestedReq.Project.Name != "" {
-		project = nestedReq.Project
-	} else {
-		// 2. Try Flat Structure { ... }
-		if err := json.Unmarshal(bodyBytes, &project); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON format: " + err.Error()})
-			return
-		}
+	if err := BindNestedOrFlat(c, "project", &project); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON format: " + err.Error()})
+		return
 	}
 
 	project.ID = uint(id)
@@ -344,25 +308,9 @@ func (h *LotHandler) Create(c *gin.Context) {
 	projectID, _ := strconv.ParseUint(c.Param("project_id"), 10, 32)
 	var lot models.Lot
 
-	var bodyBytes []byte
-	if c.Request.Body != nil {
-		bodyBytes, _ = io.ReadAll(c.Request.Body)
-	}
-	// Restore body for future binding
-	c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
-
-	// 1. Try Nested Structure { "lot": { ... } }
-	var nestedReq struct {
-		Lot models.Lot `json:"lot"`
-	}
-	if err := json.Unmarshal(bodyBytes, &nestedReq); err == nil && nestedReq.Lot.Name != "" {
-		lot = nestedReq.Lot
-	} else {
-		// 2. Try Flat Structure { ... }
-		if err := json.Unmarshal(bodyBytes, &lot); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON format: " + err.Error()})
-			return
-		}
+	if err := BindNestedOrFlat(c, "lot", &lot); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON format: " + err.Error()})
+		return
 	}
 
 	lot.ProjectID = uint(projectID)
@@ -390,25 +338,9 @@ func (h *LotHandler) Update(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("lot_id"), 10, 32)
 	var lot models.Lot
 
-	var bodyBytes []byte
-	if c.Request.Body != nil {
-		bodyBytes, _ = io.ReadAll(c.Request.Body)
-	}
-	// Restore body for future binding
-	c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
-
-	// 1. Try Nested Structure { "lot": { ... } }
-	var nestedReq struct {
-		Lot models.Lot `json:"lot"`
-	}
-	if err := json.Unmarshal(bodyBytes, &nestedReq); err == nil && nestedReq.Lot.Name != "" {
-		lot = nestedReq.Lot
-	} else {
-		// 2. Try Flat Structure { ... }
-		if err := json.Unmarshal(bodyBytes, &lot); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON format: " + err.Error()})
-			return
-		}
+	if err := BindNestedOrFlat(c, "lot", &lot); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON format: " + err.Error()})
+		return
 	}
 
 	lot.ID = uint(id)
