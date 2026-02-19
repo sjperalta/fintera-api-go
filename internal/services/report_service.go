@@ -884,8 +884,15 @@ func (s *ReportService) formatCurrencyWithLempiras(amount float64) string {
 }
 
 func (s *ReportService) formatDateLong(t time.Time) string {
+	return fmt.Sprintf("%d de %s del %d", t.Day(), s.getSpanishMonthFull(t.Month()), t.Year())
+}
+
+func (s *ReportService) getSpanishMonthFull(m time.Month) string {
 	months := []string{"", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"}
-	return fmt.Sprintf("%d de %s del %d", t.Day(), months[t.Month()], t.Year())
+	if int(m) >= 1 && int(m) <= 12 {
+		return months[int(m)]
+	}
+	return m.String()
 }
 
 func (s *ReportService) formatDateShort(t time.Time) string {
