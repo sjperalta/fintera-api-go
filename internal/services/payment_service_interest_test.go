@@ -13,8 +13,8 @@ import (
 
 // Mock LedgerRepository
 type mockLedgerRepository struct {
-	mockFindOrCreate    func(ctx context.Context, entry *models.ContractLedgerEntry) error
-	mockBatchUpsert     func(ctx context.Context, entries []models.ContractLedgerEntry) error
+	mockFindOrCreate func(ctx context.Context, entry *models.ContractLedgerEntry) error
+	mockBatchUpsert  func(ctx context.Context, entries []models.ContractLedgerEntry) error
 }
 
 func (m *mockLedgerRepository) Create(ctx context.Context, entry *models.ContractLedgerEntry) error {
@@ -74,9 +74,9 @@ func (m *mockNotificationRepository) Create(ctx context.Context, notification *m
 // Redefine mock here to add FindOverdue support
 type mockPaymentRepositoryWithOverdue struct {
 	repository.PaymentRepository
-	mockFindOverdue    func(ctx context.Context) ([]models.Payment, error)
-	mockUpdate         func(ctx context.Context, payment *models.Payment) error
-	mockBatchUpdate    func(ctx context.Context, updates map[uint]float64) error
+	mockFindOverdue func(ctx context.Context) ([]models.Payment, error)
+	mockUpdate      func(ctx context.Context, payment *models.Payment) error
+	mockBatchUpdate func(ctx context.Context, updates map[uint]float64) error
 }
 
 func (m *mockPaymentRepositoryWithOverdue) FindOverdue(ctx context.Context) ([]models.Payment, error) {

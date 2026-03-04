@@ -10,7 +10,6 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/sjperalta/fintera-api/internal/middleware"
 	"github.com/sjperalta/fintera-api/internal/models"
-	"github.com/sjperalta/fintera-api/internal/repository"
 	"github.com/sjperalta/fintera-api/internal/services"
 )
 
@@ -41,10 +40,7 @@ func NewUserHandler(userService *services.UserService, paymentService *services.
 // @Security BearerAuth
 // @Router /users [get]
 func (h *UserHandler) Index(c *gin.Context) {
-	query := repository.NewListQuery()
-	query.Page, _ = strconv.Atoi(c.DefaultQuery("page", "1"))
-	query.PerPage, _ = strconv.Atoi(c.DefaultQuery("per_page", "20"))
-	query.Search = c.Query("search_term")
+	query := ParseListQuery(c)
 
 	// Sellers only see users with role "user" (clients/leads)
 	currentRole := strings.ToLower(middleware.GetUserRole(c))

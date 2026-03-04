@@ -40,10 +40,7 @@ func NewContractHandler(contractService *services.ContractService, storage *stor
 // @Security BearerAuth
 // @Router /contracts [get]
 func (h *ContractHandler) Index(c *gin.Context) {
-	query := &repository.ContractQuery{ListQuery: repository.NewListQuery()}
-	query.Page, _ = strconv.Atoi(c.DefaultQuery("page", "1"))
-	query.PerPage, _ = strconv.Atoi(c.DefaultQuery("per_page", "20"))
-	query.Search = c.Query("search_term")
+	query := &repository.ContractQuery{ListQuery: ParseListQuery(c)}
 	query.Status = c.Query("status")
 	if guid := c.Query("guid"); guid != "" {
 		query.Filters["guid"] = guid

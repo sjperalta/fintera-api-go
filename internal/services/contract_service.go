@@ -599,7 +599,6 @@ func (s *ContractService) CapitalRepayment(ctx context.Context, id uint, amount 
 	return nil
 }
 
-
 func (s *ContractService) ReleaseUnpaidReservations(ctx context.Context) error {
 	// Find reservations older than 48 hours without payment
 	contracts, err := s.repo.FindPendingReservations(ctx, 48)

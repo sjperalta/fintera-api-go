@@ -8,24 +8,24 @@ import (
 
 // Payment represents a payment for a contract
 type Payment struct {
-	ID               uint       `gorm:"primaryKey" json:"id"`
-	ContractID       uint       `gorm:"not null;index" json:"contract_id"`
-	Amount           float64    `gorm:"type:decimal(10,2);not null" json:"amount"`
-	PaidAmount       *float64   `gorm:"type:decimal(15,2);default:0" json:"paid_amount"`
-	DueDate          time.Time  `gorm:"type:date;not null;index" json:"due_date"`
-	PaymentDate      *time.Time `gorm:"type:date" json:"payment_date"`
-	Status           string     `gorm:"default:pending;not null;index" json:"status"`
-	PaymentType      string     `gorm:"default:installment" json:"payment_type"`
-	Description      *string    `json:"description"`
-	InterestAmount   *float64   `gorm:"type:decimal(10,2)" json:"interest_amount"`
-	ApprovedAt       *time.Time `gorm:"index" json:"approved_at"`
-	ApprovedByUserID *uint      `gorm:"index" json:"approved_by_user_id"`
-	RejectionReason       *string    `gorm:"type:text" json:"rejection_reason,omitempty"`
-	DocumentPath          *string    `json:"-"` // Receipt file path
-	OverdueReminderSentAt   *time.Time `gorm:"column:overdue_reminder_sent_at" json:"-"`   // When overdue reminder email was last sent
-	UpcomingReminderSentAt  *time.Time `gorm:"column:upcoming_reminder_sent_at" json:"-"`  // When "due tomorrow" reminder was sent
-	CreatedAt               time.Time  `gorm:"index" json:"created_at"`
-	UpdatedAt             time.Time  `json:"updated_at"`
+	ID                     uint       `gorm:"primaryKey" json:"id"`
+	ContractID             uint       `gorm:"not null;index" json:"contract_id"`
+	Amount                 float64    `gorm:"type:decimal(10,2);not null" json:"amount"`
+	PaidAmount             *float64   `gorm:"type:decimal(15,2);default:0" json:"paid_amount"`
+	DueDate                time.Time  `gorm:"type:date;not null;index" json:"due_date"`
+	PaymentDate            *time.Time `gorm:"type:date" json:"payment_date"`
+	Status                 string     `gorm:"default:pending;not null;index" json:"status"`
+	PaymentType            string     `gorm:"default:installment" json:"payment_type"`
+	Description            *string    `json:"description"`
+	InterestAmount         *float64   `gorm:"type:decimal(10,2)" json:"interest_amount"`
+	ApprovedAt             *time.Time `gorm:"index" json:"approved_at"`
+	ApprovedByUserID       *uint      `gorm:"index" json:"approved_by_user_id"`
+	RejectionReason        *string    `gorm:"type:text" json:"rejection_reason,omitempty"`
+	DocumentPath           *string    `json:"-"`                                         // Receipt file path
+	OverdueReminderSentAt  *time.Time `gorm:"column:overdue_reminder_sent_at" json:"-"`  // When overdue reminder email was last sent
+	UpcomingReminderSentAt *time.Time `gorm:"column:upcoming_reminder_sent_at" json:"-"` // When "due tomorrow" reminder was sent
+	CreatedAt              time.Time  `gorm:"index" json:"created_at"`
+	UpdatedAt              time.Time  `json:"updated_at"`
 
 	// Associations
 	Contract       Contract `gorm:"foreignKey:ContractID" json:"contract,omitempty"`
@@ -91,23 +91,23 @@ func (p *Payment) OverdueDays() int {
 
 // PaymentResponse is the JSON response format for payments
 type PaymentResponse struct {
-	ID             uint       `json:"id"`
-	ContractID     uint       `json:"contract_id"`
-	DueDate        time.Time  `json:"due_date"`
-	Amount         float64    `json:"amount"`
-	Status         string     `json:"status"`
-	PaymentType    string     `json:"payment_type"`
-	PaidAmount     float64    `json:"paid_amount"`
-	InterestAmount float64    `json:"interest_amount"`
-	OverdueDays    int        `json:"overdue_days"`
-	Description    *string    `json:"description"`
-	PaymentDate    *time.Time `json:"payment_date"`
-	ApprovedAt     *time.Time `json:"approved_at"`
-	Approver       string     `json:"approver,omitempty"`
-	HasReceipt      bool    `json:"has_receipt"`
-	IsPDF           bool    `json:"is_pdf"`
-	IsOverpayment   bool    `json:"is_overpayment"` // true when paid_amount > amount
-	RejectionReason *string `json:"rejection_reason,omitempty"`
+	ID              uint       `json:"id"`
+	ContractID      uint       `json:"contract_id"`
+	DueDate         time.Time  `json:"due_date"`
+	Amount          float64    `json:"amount"`
+	Status          string     `json:"status"`
+	PaymentType     string     `json:"payment_type"`
+	PaidAmount      float64    `json:"paid_amount"`
+	InterestAmount  float64    `json:"interest_amount"`
+	OverdueDays     int        `json:"overdue_days"`
+	Description     *string    `json:"description"`
+	PaymentDate     *time.Time `json:"payment_date"`
+	ApprovedAt      *time.Time `json:"approved_at"`
+	Approver        string     `json:"approver,omitempty"`
+	HasReceipt      bool       `json:"has_receipt"`
+	IsPDF           bool       `json:"is_pdf"`
+	IsOverpayment   bool       `json:"is_overpayment"` // true when paid_amount > amount
+	RejectionReason *string    `json:"rejection_reason,omitempty"`
 
 	// Contract details
 	ContractStatus    string  `json:"contract_status,omitempty"`
