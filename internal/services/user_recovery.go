@@ -14,9 +14,9 @@ import (
 // GenerateTempPassword generates a 5-character password with: at least 1 number, 1 uppercase letter, and 1 symbol.
 func GenerateTempPassword() (string, error) {
 	const (
-		digits   = "0123456789"
-		uppers   = "ABCDEFGHJKLMNPQRSTUVWXYZ" // exclude I,O for clarity
-		symbols  = "!@#$%&*"
+		digits  = "0123456789"
+		uppers  = "ABCDEFGHJKLMNPQRSTUVWXYZ" // exclude I,O for clarity
+		symbols = "!@#$%&*"
 	)
 	charsets := []string{digits, uppers, symbols}
 	result := make([]byte, 5)

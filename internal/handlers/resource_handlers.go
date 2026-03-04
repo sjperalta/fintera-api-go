@@ -10,7 +10,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/sjperalta/fintera-api/internal/middleware"
 	"github.com/sjperalta/fintera-api/internal/models"
-	"github.com/sjperalta/fintera-api/internal/repository"
 	"github.com/sjperalta/fintera-api/internal/services"
 )
 
@@ -34,21 +33,9 @@ func (h *ProjectHandler) Index(c *gin.Context) {
 	// @Success 200 {object} map[string]interface{}
 	// @Security BearerAuth
 	// @Router /projects [get]
-	query := repository.NewListQuery()
-	query.Page, _ = strconv.Atoi(c.DefaultQuery("page", "1"))
-	query.PerPage, _ = strconv.Atoi(c.DefaultQuery("per_page", "20"))
-	query.Search = c.Query("search_term")
+	query := ParseListQuery(c)
 	if guid := c.Query("guid"); guid != "" {
 		query.Filters["guid"] = guid
-	}
-
-	// Parse sort parameter (format: field-direction, e.g. name-asc)
-	if sort := c.Query("sort"); sort != "" && sort != "No Sort" {
-		parts := strings.Split(sort, "-")
-		query.SortBy = parts[0]
-		if len(parts) > 1 {
-			query.SortDir = parts[1]
-		}
 	}
 
 	projects, total, err := h.projectService.List(c.Request.Context(), query)
@@ -239,10 +226,7 @@ func NewLotHandler(lotService *services.LotService) *LotHandler {
 // @Router /projects/{project_id}/lots [get]
 func (h *LotHandler) Index(c *gin.Context) {
 	projectID, _ := strconv.ParseUint(c.Param("project_id"), 10, 32)
-	query := repository.NewListQuery()
-	query.Page, _ = strconv.Atoi(c.DefaultQuery("page", "1"))
-	query.PerPage, _ = strconv.Atoi(c.DefaultQuery("per_page", "20"))
-	query.Search = c.Query("search_term")
+	query := ParseListQuery(c)
 	query.Filters["status"] = c.Query("status")
 
 	lots, total, err := h.lotService.List(c.Request.Context(), uint(projectID), query)
@@ -394,9 +378,7 @@ func NewNotificationHandler(notificationService *services.NotificationService) *
 // @Router /notifications [get]
 func (h *NotificationHandler) Index(c *gin.Context) {
 	userID := middleware.GetUserID(c)
-	query := repository.NewListQuery()
-	query.Page, _ = strconv.Atoi(c.DefaultQuery("page", "1"))
-	query.PerPage, _ = strconv.Atoi(c.DefaultQuery("per_page", "20"))
+	query := ParseListQuery(c)
 	if status := c.Query("status"); status != "" {
 		query.Filters["status"] = status
 	}

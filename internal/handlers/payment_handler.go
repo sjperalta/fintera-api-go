@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/sjperalta/fintera-api/internal/repository"
 	"github.com/sjperalta/fintera-api/internal/services"
 	"github.com/sjperalta/fintera-api/internal/storage"
 )
@@ -33,9 +32,7 @@ func NewPaymentHandler(paymentService *services.PaymentService, storage *storage
 // @Security BearerAuth
 // @Router /payments [get]
 func (h *PaymentHandler) Index(c *gin.Context) {
-	query := repository.NewListQuery()
-	query.Page, _ = strconv.Atoi(c.DefaultQuery("page", "1"))
-	query.PerPage, _ = strconv.Atoi(c.DefaultQuery("per_page", "20"))
+	query := ParseListQuery(c)
 	query.Filters["status"] = c.Query("status")
 	query.Filters["start_date"] = c.Query("start_date")
 	query.Filters["end_date"] = c.Query("end_date")
@@ -48,15 +45,6 @@ func (h *PaymentHandler) Index(c *gin.Context) {
 	}
 	if applicant := c.Query("applicant"); applicant != "" {
 		query.Filters["search_term"] = applicant
-	}
-
-	// Parse sort parameter (format: field-direction)
-	if sort := c.Query("sort"); sort != "" && sort != "No Sort" {
-		parts := strings.Split(sort, "-")
-		query.SortBy = parts[0]
-		if len(parts) > 1 {
-			query.SortDir = parts[1]
-		}
 	}
 
 	payments, total, err := h.paymentService.List(c.Request.Context(), query)
