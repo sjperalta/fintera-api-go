@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
@@ -154,15 +155,29 @@ func (r *userRepository) List(ctx context.Context, query *ListQuery) ([]models.U
 	// Count total
 	db.Count(&total)
 
-	// Apply sorting
-	if query.SortBy != "" {
-		order := query.SortBy
+	// Apply sorting with allowlist to prevent SQL injection
+	allowedSortColumns := map[string]bool{
+		"id":           true,
+		"email":        true,
+		"full_name":    true,
+		"phone":        true,
+		"role":         true,
+		"status":       true,
+		"identity":     true,
+		"rtn":          true,
+		"created_at":   true,
+		"updated_at":   true,
+		"credit_score": true,
+	}
+
+	if query.SortBy != "" && allowedSortColumns[query.SortBy] {
+		sortDir := "ASC"
 		if query.SortDir == "desc" {
-			order += " DESC"
+			sortDir = "DESC"
 		}
-		db = db.Order(order)
+		db = db.Order(fmt.Sprintf("users.%s %s", query.SortBy, sortDir))
 	} else {
-		db = db.Order("created_at DESC")
+		db = db.Order("users.created_at DESC")
 	}
 
 	// Apply pagination

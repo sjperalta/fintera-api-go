@@ -186,13 +186,29 @@ func (r *contractRepository) List(ctx context.Context, query *ContractQuery) ([]
 		return nil, 0, err
 	}
 
-	// Apply sorting
-	if query.SortBy != "" {
-		order := query.SortBy
+	// Apply sorting with allowlist to prevent SQL injection
+	allowedSortColumns := map[string]bool{
+		"id":                true,
+		"lot_id":            true,
+		"applicant_user_id": true,
+		"payment_term":      true,
+		"guid":              true,
+		"financing_type":    true,
+		"status":            true,
+		"amount":            true,
+		"balance":           true,
+		"approved_at":       true,
+		"active":            true,
+		"created_at":        true,
+		"updated_at":        true,
+	}
+
+	if query.SortBy != "" && allowedSortColumns[query.SortBy] {
+		sortDir := "ASC"
 		if query.SortDir == "desc" {
-			order += " DESC"
+			sortDir = "DESC"
 		}
-		db = db.Order(order)
+		db = db.Order(fmt.Sprintf("contracts.%s %s", query.SortBy, sortDir))
 	} else {
 		db = db.Order("contracts.created_at DESC")
 	}
@@ -465,12 +481,34 @@ func (r *paymentRepository) List(ctx context.Context, query *ListQuery) ([]model
 	// Apply sorting: always show "submitted" (enviados) first, then the rest
 	submittedFirst := "(CASE WHEN payments.status = '" + models.PaymentStatusSubmitted + "' THEN 0 ELSE 1 END) ASC"
 	db = db.Order(submittedFirst)
-	if query.SortBy != "" {
+	// Apply sorting with allowlist to prevent SQL injection
+	allowedSortColumns := map[string]bool{
+		"id":                 true,
+		"contract_id":        true,
+		"amount":             true,
+		"paid_amount":        true,
+		"due_date":           true,
+		"payment_date":       true,
+		"status":             true,
+		"payment_type":       true,
+		"interest_amount":    true,
+		"approved_at":        true,
+		"created_at":         true,
+		"updated_at":         true,
+		"applicant":          true, // Special case
+	}
+
+	if query.SortBy != "" && allowedSortColumns[query.SortBy] {
 		field := query.SortBy
+		sortDir := "ASC"
+		if strings.ToLower(query.SortDir) == "desc" {
+			sortDir = "DESC"
+		}
+
 		// Map frontend fields to database columns if necessary
 		switch field {
-		case "updated_at", "created_at", "due_date", "payment_date":
-			field = "payments." + field
+		case "id", "contract_id", "amount", "paid_amount", "due_date", "payment_date", "status", "payment_type", "interest_amount", "approved_at", "created_at", "updated_at":
+			field = fmt.Sprintf("payments.%s", field)
 		case "applicant":
 			// Sort by the applicant's full name via contract → user join
 			db = db.Joins("LEFT JOIN contracts AS sort_c ON sort_c.id = payments.contract_id").
@@ -478,13 +516,7 @@ func (r *paymentRepository) List(ctx context.Context, query *ListQuery) ([]model
 			field = "sort_u.full_name"
 		}
 
-		order := field
-		if strings.ToLower(query.SortDir) == "desc" {
-			order += " DESC"
-		} else {
-			order += " ASC"
-		}
-		db = db.Order(order)
+		db = db.Order(fmt.Sprintf("%s %s", field, sortDir))
 	} else {
 		db = db.Order("payments.due_date ASC")
 	}
@@ -733,14 +765,28 @@ func (r *projectRepository) List(ctx context.Context, query *ListQuery) ([]model
 
 	db.Count(&total)
 
-	if query.SortBy != "" {
-		order := query.SortBy
+	// Apply sorting with allowlist to prevent SQL injection
+	allowedSortColumns := map[string]bool{
+		"id":                     true,
+		"name":                   true,
+		"project_type":           true,
+		"address":                true,
+		"lot_count":              true,
+		"price_per_square_unit":  true,
+		"interest_rate":          true,
+		"guid":                   true,
+		"created_at":             true,
+		"updated_at":             true,
+	}
+
+	if query.SortBy != "" && allowedSortColumns[query.SortBy] {
+		sortDir := "ASC"
 		if query.SortDir == "desc" {
-			order += " DESC"
+			sortDir = "DESC"
 		}
-		db = db.Order(order)
+		db = db.Order(fmt.Sprintf("projects.%s %s", query.SortBy, sortDir))
 	} else {
-		db = db.Order("created_at DESC")
+		db = db.Order("projects.created_at DESC")
 	}
 
 	if query.PerPage > 0 {
@@ -822,14 +868,28 @@ func (r *lotRepository) List(ctx context.Context, projectID uint, query *ListQue
 
 	db.Count(&total)
 
-	if query.SortBy != "" {
-		order := query.SortBy
+	// Apply sorting with allowlist to prevent SQL injection
+	allowedSortColumns := map[string]bool{
+		"id":                  true,
+		"project_id":          true,
+		"name":                true,
+		"status":              true,
+		"length":              true,
+		"width":               true,
+		"price":               true,
+		"registration_number": true,
+		"created_at":          true,
+		"updated_at":          true,
+	}
+
+	if query.SortBy != "" && allowedSortColumns[query.SortBy] {
+		sortDir := "ASC"
 		if query.SortDir == "desc" {
-			order += " DESC"
+			sortDir = "DESC"
 		}
-		db = db.Order(order)
+		db = db.Order(fmt.Sprintf("lots.%s %s", query.SortBy, sortDir))
 	} else {
-		db = db.Order("name ASC")
+		db = db.Order("lots.name ASC")
 	}
 
 	if query.PerPage > 0 {
