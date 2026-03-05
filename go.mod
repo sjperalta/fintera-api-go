@@ -1,6 +1,6 @@
 module github.com/sjperalta/fintera-api
 
-go 1.25.3
+go 1.24.0
 
 require (
 	github.com/SebastiaanKlippert/go-wkhtmltopdf v1.9.3

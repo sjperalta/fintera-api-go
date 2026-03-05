@@ -449,6 +449,7 @@ func (s *ContractService) Close(ctx context.Context, id uint) (*models.Contract,
 	// Set closed timestamp
 	now := time.Now()
 	contract.ClosedAt = &now
+	contract.Active = false
 
 	if err := s.repo.Update(ctx, contract); err != nil {
 		return nil, err

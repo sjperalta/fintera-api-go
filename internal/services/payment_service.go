@@ -30,6 +30,7 @@ type PaymentService struct {
 	contractRepo    repository.ContractRepository
 	lotRepo         repository.LotRepository
 	ledgerRepo      repository.LedgerRepository
+	contractSvc     *ContractService
 	notificationSvc *NotificationService
 	emailSvc        *EmailService
 	auditSvc        *AuditService
@@ -42,6 +43,7 @@ func NewPaymentService(
 	contractRepo repository.ContractRepository,
 	lotRepo repository.LotRepository,
 	ledgerRepo repository.LedgerRepository,
+	contractSvc *ContractService,
 	notificationSvc *NotificationService,
 	emailSvc *EmailService,
 	auditSvc *AuditService,
@@ -53,6 +55,7 @@ func NewPaymentService(
 		contractRepo:    contractRepo,
 		lotRepo:         lotRepo,
 		ledgerRepo:      ledgerRepo,
+		contractSvc:     contractSvc,
 		notificationSvc: notificationSvc,
 		emailSvc:        emailSvc,
 		auditSvc:        auditSvc,
@@ -423,30 +426,9 @@ func (s *PaymentService) updateContractBalance(ctx context.Context, contractID u
 
 	// Auto-close contract if balance is >= 0 (fully paid) and status is approved
 	if balance >= 0 && contract.Status == models.ContractStatusApproved {
-		// Close the contract
-		now := time.Now()
-		contract.Status = models.ContractStatusClosed
-		contract.ClosedAt = &now
-		contract.Active = false
-
-		if err := s.contractRepo.Update(ctx, contract); err != nil {
+		if _, err := s.contractSvc.Close(ctx, contractID); err != nil {
 			return fmt.Errorf("failed to auto-close contract: %w", err)
 		}
-
-		// Update lot status to fully paid
-		lot, err := s.lotRepo.FindByID(ctx, contract.LotID)
-		if err == nil {
-			lot.Status = models.LotStatusFullyPaid
-			s.lotRepo.Update(ctx, lot)
-		}
-
-		// Notify user about contract closure
-		s.worker.EnqueueAsync(func(ctx context.Context) error {
-			return s.notificationSvc.NotifyUser(ctx, contract.ApplicantUserID,
-				"Contrato completado",
-				"Tu contrato ha sido completado exitosamente. ¡Felicidades!",
-				models.NotificationTypeContractApproved)
-		})
 	}
 
 	return nil
