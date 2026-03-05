@@ -155,7 +155,7 @@ func TestCalculateOverdueInterest_Logic(t *testing.T) {
 
 	notifService := NewNotificationService(mockNotifRepo, mockUserRepo)
 
-	service := NewPaymentService(mockPaymentRepo, nil, nil, mockLedgerRepo, notifService, nil, nil, nil, worker)
+	service := NewPaymentService(mockPaymentRepo, nil, nil, mockLedgerRepo, nil, notifService, nil, nil, nil, worker)
 
 	// Test Data
 	now := time.Now()

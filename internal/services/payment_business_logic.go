@@ -57,8 +57,10 @@ func (s *PaymentService) ApprovePaymentWithLedger(ctx context.Context, id uint, 
 	if err != nil {
 		fmt.Printf("Failed to calculate balance: %v\n", err)
 	} else if balance >= 0 {
-		// TODO: Auto-close contract via ContractService
-		fmt.Printf("Contract %d balance is now %.2f - should be closed\n", payment.ContractID, balance)
+		// Auto-close contract via ContractService
+		if _, err := s.contractSvc.Close(ctx, payment.ContractID); err != nil {
+			fmt.Printf("Failed to auto-close contract %d: %v\n", payment.ContractID, err)
+		}
 	}
 
 	// Notify user
