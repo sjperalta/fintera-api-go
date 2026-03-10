@@ -2,10 +2,10 @@ package repository
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
-	"github.com/sjperalta/fintera-api/internal/models"
 	"github.com/stretchr/testify/assert"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -84,11 +84,16 @@ func TestUserRepository_List_Sorting(t *testing.T) {
 				Filters: make(map[string]string),
 			}
 
-			mock.ExpectQuery(`SELECT count\(\*\) FROM "users"`).
+			mock.ExpectQuery(`SELECT count\(\*\) FROM "users".*`).
 				WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 
 			// Check for the ORDER BY clause in the query
-			mock.ExpectQuery(`SELECT \* FROM "users" .* ORDER BY ` + tt.expectedOrder).
+			// We use .* before the expectedOrder to match any table prefixes like 'users.created_at'
+			orderRegex := strings.ReplaceAll(tt.expectedOrder, "created_at", ".*created_at")
+			orderRegex = strings.ReplaceAll(orderRegex, "full_name", ".*full_name")
+			orderRegex = strings.ReplaceAll(orderRegex, "email", ".*email")
+
+			mock.ExpectQuery(`SELECT \* FROM "users" .* ORDER BY ` + orderRegex).
 				WillReturnRows(sqlmock.NewRows([]string{"id", "full_name"}).AddRow(1, "Test User"))
 
 			_, _, err := repo.List(context.Background(), query)

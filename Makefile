@@ -20,7 +20,7 @@ run: build
 
 # Run in development mode with hot reload (requires air)
 dev:
-	@which air > /dev/null || go install github.com/air-verse/air@latest
+	go install github.com/air-verse/air@latest
 	air
 
 # Run tests
