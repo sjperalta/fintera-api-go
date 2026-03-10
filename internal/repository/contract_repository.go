@@ -566,8 +566,7 @@ func (r *paymentRepository) FindOverdueForActiveContracts(ctx context.Context) (
 	return payments, err
 }
 
-// FindPaymentsDueTomorrowForActiveContracts returns pending payments with due_date = tomorrow,
-// for active contracts and active users, that have not yet had an upcoming reminder sent.
+// FindPaymentsDueTomorrowForActiveContracts returns pending payments with due_date = tomorrow.
 func (r *paymentRepository) FindPaymentsDueTomorrowForActiveContracts(ctx context.Context) ([]models.Payment, error) {
 	var payments []models.Payment
 	err := r.db.WithContext(ctx).
